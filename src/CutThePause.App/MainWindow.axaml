@@ -1,0 +1,245 @@
+<Window
+    x:Class="CutThePause.App.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:CutThePause.App.Controls"
+    Title="Cut The Pause"
+    Icon="/Assets/AppIcon.png"
+    Width="1280"
+    Height="860"
+    MinWidth="1100"
+    MinHeight="760"
+    Background="#0F111A"
+    RequestedThemeVariant="Dark">
+  <Window.Resources>
+    <SolidColorBrush x:Key="BrandBaseBrush" Color="#0F111A" />
+    <SolidColorBrush x:Key="BrandPanelBrush" Color="#131D28" />
+    <SolidColorBrush x:Key="BrandPanelAltBrush" Color="#172332" />
+    <SolidColorBrush x:Key="BrandBorderBrush" Color="#273447" />
+    <SolidColorBrush x:Key="BrandTextBrush" Color="#F4F4F6" />
+    <SolidColorBrush x:Key="BrandMutedBrush" Color="#A9B6C8" />
+    <SolidColorBrush x:Key="BrandCyanBrush" Color="#14D1C8" />
+    <SolidColorBrush x:Key="BrandWarmBrush" Color="#FFB656" />
+  </Window.Resources>
+
+  <Grid RowDefinitions="*,Auto" ColumnDefinitions="420,*" Margin="24" ColumnSpacing="20" RowSpacing="18">
+    <Border Grid.Column="0" CornerRadius="28" Padding="26">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#101723" Offset="0" />
+          <GradientStop Color="#172333" Offset="0.55" />
+          <GradientStop Color="#221C28" Offset="1" />
+        </LinearGradientBrush>
+      </Border.Background>
+
+      <ScrollViewer>
+        <StackPanel Spacing="20">
+          <Border Background="#0B1220" CornerRadius="24" Padding="18" BorderBrush="#243141" BorderThickness="1">
+            <Grid RowDefinitions="Auto,Auto,Auto">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+                <controls:BrandIcon Width="86" Height="86" />
+
+                <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock FontSize="34" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}">
+                    <Run Text="Cut The " />
+                    <Run Foreground="{StaticResource BrandCyanBrush}" Text="Pause" />
+                  </TextBlock>
+                  <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="Edit Out The Silence" />
+                  <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Speech-aware trimming for creators who record talking-head videos and want the boring pause cleanup done for them." TextWrapping="Wrap" />
+                </StackPanel>
+              </Grid>
+
+              <Path
+                  Grid.Row="1"
+                  Margin="0,18,0,0"
+                  Data="M 0 16 L 42 16 L 56 8 L 72 24 L 88 4 L 102 16 L 150 16 L 164 10 L 179 24 L 197 2 L 214 16 L 258 16 L 274 6 L 293 26 L 312 16"
+                  HorizontalAlignment="Stretch"
+                  Stretch="Fill"
+                  Stroke="{StaticResource BrandCyanBrush}"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  StrokeThickness="3" />
+
+              <TextBlock
+                  Grid.Row="2"
+                  Margin="0,18,0,0"
+                  Foreground="{StaticResource BrandMutedBrush}"
+                  Text="Chosen direction from your generated identity: the ChatGPT concept drives the dark slate, cyan, and warm amber UI, while the Gemini mark now ships as the app icon."
+                  TextWrapping="Wrap" />
+            </Grid>
+          </Border>
+
+          <Border Background="{StaticResource BrandPanelBrush}" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="18">
+            <StackPanel Spacing="12">
+              <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="Source Video" />
+              <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="{Binding InputPathDisplay}" TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button
+                    Background="{StaticResource BrandCyanBrush}"
+                    BorderBrush="{StaticResource BrandCyanBrush}"
+                    Click="OnImportVideoClick"
+                    Content="Import Video"
+                    Foreground="#081019"
+                    FontWeight="Bold"
+                    Padding="18,12" />
+                <Button
+                    Background="{StaticResource BrandPanelAltBrush}"
+                    BorderBrush="{StaticResource BrandBorderBrush}"
+                    Click="OnOpenSourceClick"
+                    Content="Reveal Source"
+                    Foreground="{StaticResource BrandTextBrush}"
+                    IsEnabled="{Binding HasInput}"
+                    Padding="18,12" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource BrandPanelBrush}" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="18">
+            <StackPanel Spacing="12">
+              <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="Detection Settings" />
+
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="14">
+                <TextBlock Grid.Row="0" Foreground="{StaticResource BrandMutedBrush}" Text="Minimum silence (ms)" VerticalAlignment="Center" />
+                <TextBox Grid.Row="0" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding MinSilenceMsText}" />
+
+                <TextBlock Grid.Row="1" Foreground="{StaticResource BrandMutedBrush}" Text="Minimum speech (ms)" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding MinSpeechMsText}" />
+
+                <TextBlock Grid.Row="2" Foreground="{StaticResource BrandMutedBrush}" Text="Padding before speech (ms)" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding PaddingBeforeMsText}" />
+
+                <TextBlock Grid.Row="3" Foreground="{StaticResource BrandMutedBrush}" Text="Padding after speech (ms)" VerticalAlignment="Center" />
+                <TextBox Grid.Row="3" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding PaddingAfterMsText}" />
+
+                <TextBlock Grid.Row="4" Foreground="{StaticResource BrandMutedBrush}" Text="Speech threshold" VerticalAlignment="Center" />
+                <TextBox Grid.Row="4" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding SpeechThresholdText}" />
+
+                <TextBlock Grid.Row="5" Foreground="{StaticResource BrandMutedBrush}" Text="Export preset" VerticalAlignment="Center" />
+                <ComboBox Grid.Row="5" Grid.Column="1" Width="132" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" ItemsSource="{Binding PresetOptions}" SelectedItem="{Binding SelectedPreset}" />
+              </Grid>
+
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button
+                    Background="{StaticResource BrandCyanBrush}"
+                    BorderBrush="{StaticResource BrandCyanBrush}"
+                    Click="OnAnalyzeClick"
+                    Content="Analyze Video"
+                    Foreground="#081019"
+                    FontWeight="Bold"
+                    IsEnabled="{Binding CanAnalyze}"
+                    Padding="18,12" />
+                <Button
+                    Background="{StaticResource BrandPanelAltBrush}"
+                    BorderBrush="{StaticResource BrandBorderBrush}"
+                    Click="OnResetClick"
+                    Content="Reset Review"
+                    Foreground="{StaticResource BrandTextBrush}"
+                    Padding="18,12" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource BrandPanelBrush}" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="18">
+            <StackPanel Spacing="12">
+              <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="Export" />
+              <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="{Binding OutputPathDisplay}" TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button
+                    Background="{StaticResource BrandPanelAltBrush}"
+                    BorderBrush="{StaticResource BrandBorderBrush}"
+                    Click="OnChooseOutputClick"
+                    Content="Choose Output"
+                    Foreground="{StaticResource BrandTextBrush}"
+                    Padding="18,12" />
+                <Button
+                    Background="{StaticResource BrandWarmBrush}"
+                    BorderBrush="{StaticResource BrandWarmBrush}"
+                    Click="OnExportClick"
+                    Content="Export Trimmed Video"
+                    Foreground="#231408"
+                    FontWeight="Bold"
+                    IsEnabled="{Binding CanExport}"
+                    Padding="18,12" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Border Grid.Column="1" Background="#0E1622" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="28" Padding="24">
+      <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="18">
+        <StackPanel Spacing="6">
+          <TextBlock FontSize="32" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="Review Detected Cuts" />
+          <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Inspect each detected silence range, disable any false positives, then export the cleaned cut." TextWrapping="Wrap" />
+        </StackPanel>
+
+        <UniformGrid Grid.Row="1" Columns="3">
+          <Border Background="#131E2A" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="18" Margin="0,0,12,0" Padding="16">
+            <StackPanel>
+              <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Original Duration" />
+              <TextBlock FontSize="24" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="{Binding OriginalDurationText}" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="#12272A" BorderBrush="#1D4C4A" BorderThickness="1" CornerRadius="18" Margin="0,0,12,0" Padding="16">
+            <StackPanel>
+              <TextBlock Foreground="{StaticResource BrandCyanBrush}" Text="Removed" />
+              <TextBlock FontSize="24" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="{Binding RemovedDurationText}" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="#2C2116" BorderBrush="#6B4A23" BorderThickness="1" CornerRadius="18" Padding="16">
+            <StackPanel>
+              <TextBlock Foreground="{StaticResource BrandWarmBrush}" Text="Estimated Output" />
+              <TextBlock FontSize="24" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="{Binding OutputDurationText}" />
+            </StackPanel>
+          </Border>
+        </UniformGrid>
+
+        <Border Grid.Row="2" Background="#302311" BorderBrush="#6A4C1F" BorderThickness="1" CornerRadius="18" Padding="14" IsVisible="{Binding HasWarnings}">
+          <StackPanel Spacing="8">
+            <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource BrandWarmBrush}" Text="Warnings" />
+            <TextBlock Foreground="#F8D7A3" Text="{Binding WarningsText}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3">
+          <Border Background="#131E2A" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="18" Padding="24" IsVisible="{Binding ShowEmptyState}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+              <controls:BrandIcon Width="76" Height="76" />
+              <TextBlock FontSize="24" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="No analysis yet" HorizontalAlignment="Center" />
+              <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Import the sample clip, run analysis, and the review list will populate here." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <ScrollViewer IsVisible="{Binding HasCuts}">
+            <ItemsControl ItemsSource="{Binding CutCandidates}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="#131E2A" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="16" Margin="0,0,0,12" Padding="16">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                      <CheckBox IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" />
+
+                      <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="{Binding Title}" />
+                        <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+                        <TextBlock Foreground="{StaticResource BrandCyanBrush}" Text="{Binding Reason}" />
+                      </StackPanel>
+
+                      <TextBlock Grid.Column="2" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrandWarmBrush}" Text="{Binding DurationText}" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="1" Grid.ColumnSpan="2" Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="18" Padding="16">
+      <TextBlock Foreground="{StaticResource BrandTextBrush}" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</Window>

@@ -1,0 +1,8 @@
+<UserControl
+    x:Class="CutThePause.App.Controls.BrandIcon"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="112"
+    Height="112">
+  <Image Source="/Assets/AppIcon.png" Stretch="Uniform" />
+</UserControl>

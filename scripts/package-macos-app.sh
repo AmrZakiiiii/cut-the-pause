@@ -28,6 +28,11 @@ if [[ -f "$repo_root/assets/models/silero_vad.onnx" ]]; then
   cp "$repo_root/assets/models/silero_vad.onnx" "$app_dir/Contents/MacOS/Models/silero_vad.onnx"
 fi
 
+icon_source="$repo_root/src/CutThePause.App/Assets/AppIcon.png"
+if [[ -f "$icon_source" ]] && command -v sips >/dev/null 2>&1; then
+  sips -s format icns "$icon_source" --out "$app_dir/Contents/Resources/CutThePause.icns" >/dev/null
+fi
+
 chmod +x "$app_dir/Contents/MacOS/CutThePause.App" || true
 
 echo "Created app bundle at $app_dir"

@@ -9,7 +9,8 @@ packages/
 *.suo
 *.swp
 *.DS_Store
-*.app
 *.zip
 assets/models/*.onnx
 tools/
+Visual Identity/
+Real Test Video/

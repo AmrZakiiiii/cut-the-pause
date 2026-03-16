@@ -8,6 +8,8 @@
     <string>CutThePause.App</string>
     <key>CFBundleIdentifier</key>
     <string>com.amrzaky.cutthepause</string>
+    <key>CFBundleIconFile</key>
+    <string>CutThePause</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>

@@ -25,7 +25,8 @@ public sealed class FallbackVadAnalyzer : IVadAnalyzer
         {
             return await _primaryAnalyzer.DetectSpeechAsync(audio, settings, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is FileNotFoundException or InvalidOperationException or OnnxRuntimeException)
+        catch (Exception exception) when (
+            exception is FileNotFoundException or InvalidOperationException or OnnxRuntimeException or DllNotFoundException or TypeInitializationException)
         {
             var fallbackResult = await _fallbackAnalyzer.DetectSpeechAsync(audio, settings, cancellationToken).ConfigureAwait(false);
             var warnings = fallbackResult.Warnings

@@ -3,11 +3,17 @@ using CutThePause.Infrastructure.Abstractions;
 using CutThePause.Infrastructure.Models;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace CutThePause.Infrastructure.Vad;
 
 public sealed class SileroVadAnalyzer : IVadAnalyzer
 {
+    private static readonly object NativeRuntimeLock = new();
+    private static bool _nativeRuntimeLoaded;
+    private static bool _resolverInstalled;
+    private static IntPtr _nativeRuntimeHandle;
     private readonly string _modelPath;
 
     public SileroVadAnalyzer(string modelPath)
@@ -25,21 +31,37 @@ public sealed class SileroVadAnalyzer : IVadAnalyzer
             throw new FileNotFoundException("Silero VAD model was not found.", _modelPath);
         }
 
+        EnsureNativeRuntimeLoaded();
+
         const int frameSize = 512;
+        const int contextSize = 64;
         using var session = new InferenceSession(_modelPath);
 
         var samples = audio.Samples;
         var probabilities = new List<float>();
+        var state = CreateInitialState();
+        var context = new float[contextSize];
 
         for (var offset = 0; offset < samples.Length; offset += frameSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var frame = new DenseTensor<float>(new[] { 1, frameSize });
+            var frameSamples = new float[frameSize];
             for (var index = 0; index < frameSize; index++)
             {
                 var sampleIndex = offset + index;
-                frame[0, index] = sampleIndex < samples.Length ? samples[sampleIndex] : 0f;
+                frameSamples[index] = sampleIndex < samples.Length ? samples[sampleIndex] : 0f;
+            }
+
+            var frame = new DenseTensor<float>(new[] { 1, frameSize + contextSize });
+            for (var index = 0; index < contextSize; index++)
+            {
+                frame[0, index] = context[index];
+            }
+
+            for (var index = 0; index < frameSize; index++)
+            {
+                frame[0, contextSize + index] = frameSamples[index];
             }
 
             var sampleRate = new DenseTensor<long>(new[] { 1 });
@@ -48,11 +70,15 @@ public sealed class SileroVadAnalyzer : IVadAnalyzer
             using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = session.Run(new[]
             {
                 NamedOnnxValue.CreateFromTensor("input", frame),
+                NamedOnnxValue.CreateFromTensor("state", state),
                 NamedOnnxValue.CreateFromTensor("sr", sampleRate)
             });
 
-            var probability = results.First().AsEnumerable<float>().FirstOrDefault();
+            var outputs = results.ToArray();
+            var probability = outputs[0].AsEnumerable<float>().FirstOrDefault();
             probabilities.Add(probability);
+            state = CopyState(outputs[1].AsTensor<float>());
+            Array.Copy(frameSamples, frameSamples.Length - contextSize, context, 0, contextSize);
         }
 
         var segments = new List<SpeechSegment>();
@@ -80,6 +106,142 @@ public sealed class SileroVadAnalyzer : IVadAnalyzer
         }
 
         return Task.FromResult(new VadAnalysisResult(segments, Array.Empty<string>()));
+    }
+
+    private static DenseTensor<float> CreateInitialState()
+    {
+        var state = new DenseTensor<float>(new[] { 2, 1, 128 });
+        state.Buffer.Span.Clear();
+        return state;
+    }
+
+    private static DenseTensor<float> CopyState(Tensor<float> source)
+    {
+        var shape = source.Dimensions.ToArray();
+        var copiedState = new DenseTensor<float>(shape);
+        var sourceValues = source.ToArray();
+        sourceValues.CopyTo(copiedState.Buffer.Span);
+        return copiedState;
+    }
+
+    private static void EnsureNativeRuntimeLoaded()
+    {
+        if (_nativeRuntimeLoaded)
+        {
+            return;
+        }
+
+        lock (NativeRuntimeLock)
+        {
+            if (_nativeRuntimeLoaded)
+            {
+                return;
+            }
+
+            if (!_resolverInstalled)
+            {
+                try
+                {
+                    NativeLibrary.SetDllImportResolver(typeof(InferenceSession).Assembly, ResolveOnnxRuntimeImport);
+                }
+                catch (InvalidOperationException)
+                {
+                    // The assembly already has a resolver; keep going and try direct loading.
+                }
+
+                _resolverInstalled = true;
+            }
+
+            foreach (var candidate in GetNativeRuntimeCandidates())
+            {
+                if (!File.Exists(candidate))
+                {
+                    continue;
+                }
+
+                _nativeRuntimeHandle = NativeLibrary.Load(candidate);
+                _nativeRuntimeLoaded = true;
+                return;
+            }
+        }
+    }
+
+    private static IntPtr ResolveOnnxRuntimeImport(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+    {
+        if (!libraryName.Contains("onnxruntime", StringComparison.OrdinalIgnoreCase))
+        {
+            return IntPtr.Zero;
+        }
+
+        if (_nativeRuntimeHandle != IntPtr.Zero)
+        {
+            return _nativeRuntimeHandle;
+        }
+
+        foreach (var candidate in GetNativeRuntimeCandidates())
+        {
+            if (NativeLibrary.TryLoad(candidate, out var handle))
+            {
+                _nativeRuntimeHandle = handle;
+                _nativeRuntimeLoaded = true;
+                return handle;
+            }
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private static IEnumerable<string> GetNativeRuntimeCandidates()
+    {
+        var fileName = GetNativeLibraryName();
+        if (fileName is null)
+        {
+            yield break;
+        }
+
+        var directories = new[]
+        {
+            AppContext.BaseDirectory,
+            Path.GetDirectoryName(typeof(SileroVadAnalyzer).Assembly.Location)
+        }
+        .Where(static directory => !string.IsNullOrWhiteSpace(directory))
+        .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var directory in directories)
+        {
+            var runtimesDirectory = Path.Combine(directory!, "runtimes");
+            if (!Directory.Exists(runtimesDirectory))
+            {
+                continue;
+            }
+
+            foreach (var nativeDirectory in Directory.EnumerateDirectories(runtimesDirectory, "*", SearchOption.TopDirectoryOnly)
+                         .Select(path => Path.Combine(path, "native"))
+                         .Where(Directory.Exists))
+            {
+                yield return Path.Combine(nativeDirectory, fileName);
+            }
+        }
+    }
+
+    private static string? GetNativeLibraryName()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            return "libonnxruntime.dylib";
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return "libonnxruntime.so";
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return "onnxruntime.dll";
+        }
+
+        return null;
     }
 
     private static void AppendSegment(
