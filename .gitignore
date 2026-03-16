@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+artifacts/
+packages/
+*.user
+*.suo
+*.swp
+*.DS_Store
+*.app
+*.zip
+assets/models/*.onnx
+tools/
