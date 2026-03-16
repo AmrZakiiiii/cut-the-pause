@@ -24,7 +24,34 @@ public sealed class FfmpegExportCommandBuilderTests
 
         Assert.Contains("concat=n=2:v=1:a=1[outv][outa]", commandPlan.FilterGraph);
         Assert.Contains("libx264", commandPlan.Arguments);
-        Assert.Contains("23", commandPlan.Arguments);
+        Assert.Contains("24", commandPlan.Arguments);
+        Assert.False(commandPlan.UsesHardwareAcceleration);
         Assert.Equal("output.mp4", commandPlan.Arguments[^1]);
+    }
+
+    [Fact]
+    public void Build_OnMacWithPreferredHardwareAcceleration_UsesVideoToolboxEncoder()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        var request = new ExportRequest(
+            "input.mp4",
+            "output.mp4",
+            TimeSpan.FromSeconds(10),
+            ExportPreset.Balanced,
+            Array.Empty<CutCandidate>(),
+            new[]
+            {
+                new KeepSegment(0, TimeSpan.Zero, TimeSpan.FromSeconds(3))
+            });
+
+        var commandPlan = FfmpegExportCommandBuilder.Build(request, preferHardwareAcceleration: true);
+
+        Assert.Contains("h264_videotoolbox", commandPlan.Arguments);
+        Assert.Contains("5500k", commandPlan.Arguments);
+        Assert.True(commandPlan.UsesHardwareAcceleration);
     }
 }

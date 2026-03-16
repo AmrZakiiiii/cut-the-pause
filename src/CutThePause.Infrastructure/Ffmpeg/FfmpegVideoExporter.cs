@@ -17,12 +17,28 @@ public sealed class FfmpegVideoExporter : IVideoExporter
     public async Task ExportAsync(ExportRequest request, CancellationToken cancellationToken)
     {
         var binaries = await _locator.LocateAsync(cancellationToken).ConfigureAwait(false);
-        var commandPlan = FfmpegExportCommandBuilder.Build(request);
+        var commandPlan = FfmpegExportCommandBuilder.Build(request, preferHardwareAcceleration: OperatingSystem.IsMacOS());
         var result = await _runner.RunAsync(binaries.FfmpegPath, commandPlan.Arguments, cancellationToken).ConfigureAwait(false);
 
-        if (result.ExitCode != 0)
+        if (result.ExitCode == 0)
         {
-            throw new InvalidOperationException($"FFmpeg export failed: {result.StandardError}");
+            return;
         }
+
+        if (commandPlan.UsesHardwareAcceleration)
+        {
+            var fallbackPlan = FfmpegExportCommandBuilder.Build(request);
+            var fallbackResult = await _runner.RunAsync(binaries.FfmpegPath, fallbackPlan.Arguments, cancellationToken).ConfigureAwait(false);
+
+            if (fallbackResult.ExitCode == 0)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"FFmpeg export failed with hardware acceleration and software fallback. Hardware: {result.StandardError} Software: {fallbackResult.StandardError}");
+        }
+
+        throw new InvalidOperationException($"FFmpeg export failed: {result.StandardError}");
     }
 }

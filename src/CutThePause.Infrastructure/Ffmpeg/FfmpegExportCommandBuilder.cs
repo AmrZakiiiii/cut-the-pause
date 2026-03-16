@@ -7,7 +7,7 @@ namespace CutThePause.Infrastructure.Ffmpeg;
 
 public static class FfmpegExportCommandBuilder
 {
-    public static ExportCommandPlan Build(ExportRequest request)
+    public static ExportCommandPlan Build(ExportRequest request, bool preferHardwareAcceleration = false)
     {
         if (request.KeepSegments.Count == 0)
         {
@@ -15,7 +15,10 @@ public static class FfmpegExportCommandBuilder
         }
 
         var filterGraph = BuildFilterGraph(request.KeepSegments);
-        var codecOptions = ResolveCodecOptions(request.Preset);
+        var usesHardwareAcceleration = preferHardwareAcceleration && OperatingSystem.IsMacOS();
+        var codecArguments = usesHardwareAcceleration
+            ? BuildHardwareCodecArguments(request.Preset)
+            : BuildSoftwareCodecArguments(request.Preset);
 
         var arguments = new List<string>
         {
@@ -31,22 +34,12 @@ public static class FfmpegExportCommandBuilder
             "[outv]",
             "-map",
             "[outa]",
-            "-c:v",
-            "libx264",
-            "-preset",
-            codecOptions.Preset,
-            "-crf",
-            codecOptions.Crf.ToString(CultureInfo.InvariantCulture),
-            "-c:a",
-            "aac",
-            "-b:a",
-            codecOptions.AudioBitrate,
-            "-movflags",
-            "+faststart",
-            request.OutputPath
         };
 
-        return new ExportCommandPlan(filterGraph, arguments);
+        arguments.AddRange(codecArguments);
+        arguments.Add(request.OutputPath);
+
+        return new ExportCommandPlan(filterGraph, arguments, usesHardwareAcceleration);
     }
 
     private static string BuildFilterGraph(IReadOnlyList<KeepSegment> keepSegments)
@@ -89,11 +82,71 @@ public static class FfmpegExportCommandBuilder
     private static string FormatSeconds(TimeSpan value) =>
         value.TotalSeconds.ToString("0.######", CultureInfo.InvariantCulture);
 
-    private static (string Preset, int Crf, string AudioBitrate) ResolveCodecOptions(ExportPreset preset) =>
+    private static IReadOnlyList<string> BuildHardwareCodecArguments(ExportPreset preset)
+    {
+        var options = ResolveHardwareCodecOptions(preset);
+
+        return new[]
+        {
+            "-c:v",
+            "h264_videotoolbox",
+            "-allow_sw",
+            "1",
+            "-realtime",
+            "1",
+            "-prio_speed",
+            "1",
+            "-profile:v",
+            "high",
+            "-pix_fmt",
+            "yuv420p",
+            "-b:v",
+            options.VideoBitrate,
+            "-c:a",
+            "aac",
+            "-b:a",
+            options.AudioBitrate,
+            "-movflags",
+            "+faststart"
+        };
+    }
+
+    private static IReadOnlyList<string> BuildSoftwareCodecArguments(ExportPreset preset)
+    {
+        var options = ResolveSoftwareCodecOptions(preset);
+
+        return new[]
+        {
+            "-c:v",
+            "libx264",
+            "-preset",
+            options.Preset,
+            "-crf",
+            options.Crf.ToString(CultureInfo.InvariantCulture),
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            options.AudioBitrate,
+            "-movflags",
+            "+faststart"
+        };
+    }
+
+    private static (string Preset, int Crf, string AudioBitrate) ResolveSoftwareCodecOptions(ExportPreset preset) =>
         preset switch
         {
-            ExportPreset.HigherQuality => ("slow", 16, "192k"),
-            ExportPreset.SmallerFile => ("medium", 23, "128k"),
-            _ => ("medium", 18, "160k")
+            ExportPreset.HigherQuality => ("fast", 18, "192k"),
+            ExportPreset.SmallerFile => ("faster", 24, "128k"),
+            _ => ("veryfast", 20, "160k")
+        };
+
+    private static (string VideoBitrate, string AudioBitrate) ResolveHardwareCodecOptions(ExportPreset preset) =>
+        preset switch
+        {
+            ExportPreset.HigherQuality => ("8000k", "192k"),
+            ExportPreset.SmallerFile => ("3500k", "128k"),
+            _ => ("5500k", "160k")
         };
 }
