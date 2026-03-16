@@ -38,16 +38,21 @@ public partial class MainWindow : Window
 
     private async void OnChooseOutputClick(object? sender, RoutedEventArgs e)
     {
+        var suggestedExtension = Path.GetExtension(ViewModel.SuggestedOutputFileName).TrimStart('.');
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Export trimmed video",
             SuggestedFileName = ViewModel.SuggestedOutputFileName,
-            DefaultExtension = "mp4",
+            DefaultExtension = string.IsNullOrWhiteSpace(suggestedExtension) ? "mp4" : suggestedExtension,
             FileTypeChoices = new[]
             {
                 new FilePickerFileType("MP4 video")
                 {
                     Patterns = new[] { "*.mp4" }
+                },
+                new FilePickerFileType("MOV master (ProRes)")
+                {
+                    Patterns = new[] { "*.mov" }
                 }
             }
         });

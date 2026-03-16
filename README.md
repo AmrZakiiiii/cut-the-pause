@@ -2,6 +2,17 @@
 
 Cut The Pause is a mac-first desktop app for solo creators who are tired of manually trimming awkward silence between spoken lines. It analyzes a video, detects speech gaps, lets you review the proposed cuts, and exports a cleaned version with the quiet sections removed.
 
+![Cut The Pause app window](docs/images/app-overview.png)
+
+## Showcase
+
+- Desktop app overview:
+  - the current macOS build with the review-first trimming UI
+- Visual identity board:
+  - the agreed brand direction that informs the app colors, icon, and README presentation
+
+![Cut The Pause visual identity board](docs/images/visual-identity-board.png)
+
 ## Visual Identity
 
 - The product direction is dark slate, electric cyan, and warm amber.
@@ -20,12 +31,14 @@ Cut The Pause is a mac-first desktop app for solo creators who are tired of manu
 - Detect speech gaps with a Silero VAD ONNX pipeline when the model is available.
 - Fall back to an energy-based detector when the ONNX model is missing.
 - Review each detected cut and disable any false positives before export.
-- Export a trimmed MP4 using FFmpeg with audio and video kept in sync.
+- Export a trimmed MP4 for fast delivery or a high-quality MOV ProRes master for editing workflows.
+- Show a dedicated export progress overlay with real FFmpeg percentage updates while rendering.
 
 ## Performance
 
 - On macOS, exports now prefer `h264_videotoolbox` for hardware-accelerated H.264 encoding.
 - If VideoToolbox export fails, the app automatically falls back to software `libx264`.
+- `.mov` exports use a ProRes-based master path so quality stays editor-friendly instead of forcing everything through a delivery codec.
 - Software presets were tuned for faster iteration:
   - `Balanced`: `libx264` `veryfast`
   - `SmallerFile`: `libx264` `faster`
@@ -78,6 +91,7 @@ If macOS blocks the bundle because it is unsigned, right-click the app once in F
 - Desktop app build succeeds on macOS.
 - Core tests pass.
 - Infrastructure tests pass.
+- FFmpeg builder coverage now checks both `mp4` and `mov` export paths.
 - Real-video smoke coverage validates analyze plus export using the provided sample clip.
 
 ## License

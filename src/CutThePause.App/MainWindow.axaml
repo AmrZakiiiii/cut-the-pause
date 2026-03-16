@@ -161,6 +161,7 @@
                     IsEnabled="{Binding CanExport}"
                     Padding="18,12" />
               </StackPanel>
+              <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Choose `.mp4` for fast delivery or `.mov` for a high-quality ProRes master that is friendlier for editing workflows." TextWrapping="Wrap" />
             </StackPanel>
           </Border>
         </StackPanel>
@@ -240,6 +241,31 @@
 
     <Border Grid.Row="1" Grid.ColumnSpan="2" Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="18" Padding="16">
       <TextBlock Foreground="{StaticResource BrandTextBrush}" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+    </Border>
+
+    <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Background="#B20B111A" CornerRadius="28" IsVisible="{Binding IsExporting}">
+      <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Border Width="420" Background="#101923" BorderBrush="#2A394B" BorderThickness="1" CornerRadius="28" Padding="24">
+          <StackPanel Spacing="16">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <controls:BrandIcon Width="62" Height="62" />
+              <StackPanel Spacing="4" VerticalAlignment="Center">
+                <TextBlock FontSize="28" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="Export In Progress" />
+                <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Cut The Pause is rendering your trimmed timeline now." TextWrapping="Wrap" />
+              </StackPanel>
+            </StackPanel>
+
+            <Border Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="20">
+              <StackPanel Spacing="10">
+                <TextBlock FontSize="46" FontWeight="Bold" Foreground="{StaticResource BrandWarmBrush}" Text="{Binding ExportProgressPercentText}" HorizontalAlignment="Center" />
+                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ExportProgressValue}" Height="12" Foreground="{StaticResource BrandCyanBrush}" Background="#1A2634" />
+                <TextBlock Foreground="{StaticResource BrandTextBrush}" FontWeight="SemiBold" Text="{Binding ExportProgressStageText}" HorizontalAlignment="Center" />
+                <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="{Binding ExportProgressDetailText}" TextAlignment="Center" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+      </Grid>
     </Border>
   </Grid>
 </Window>

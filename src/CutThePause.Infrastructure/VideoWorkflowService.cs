@@ -41,6 +41,9 @@ public sealed class VideoWorkflowService
         return CutPlanBuilder.Build(inputPath, metadata.Duration, vadResult.SpeechSegments, settings, warnings);
     }
 
-    public Task ExportAsync(ExportRequest request, CancellationToken cancellationToken) =>
-        _videoExporter.ExportAsync(request, cancellationToken);
+    public Task ExportAsync(
+        ExportRequest request,
+        IProgress<VideoExportProgress>? progress,
+        CancellationToken cancellationToken) =>
+        _videoExporter.ExportAsync(request, progress, cancellationToken);
 }

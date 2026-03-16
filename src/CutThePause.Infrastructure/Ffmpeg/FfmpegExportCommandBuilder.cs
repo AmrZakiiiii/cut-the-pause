@@ -15,16 +15,30 @@ public static class FfmpegExportCommandBuilder
         }
 
         var filterGraph = BuildFilterGraph(request.KeepSegments);
-        var usesHardwareAcceleration = preferHardwareAcceleration && OperatingSystem.IsMacOS();
-        var codecArguments = usesHardwareAcceleration
-            ? BuildHardwareCodecArguments(request.Preset)
-            : BuildSoftwareCodecArguments(request.Preset);
+        var outputFormat = ResolveOutputFormat(request.OutputPath);
+        var usesHardwareAcceleration = outputFormat == OutputFormat.Mp4 && preferHardwareAcceleration && OperatingSystem.IsMacOS();
+        var codecArguments = outputFormat switch
+        {
+            OutputFormat.Mov => BuildMovCodecArguments(request.Preset),
+            _ => usesHardwareAcceleration
+                ? BuildHardwareCodecArguments(request.Preset)
+                : BuildSoftwareCodecArguments(request.Preset)
+        };
+        var encoderLabel = outputFormat switch
+        {
+            OutputFormat.Mov => "ProRes MOV master",
+            _ when usesHardwareAcceleration => "VideoToolbox H.264",
+            _ => "Software H.264"
+        };
 
         var arguments = new List<string>
         {
             "-hide_banner",
             "-loglevel",
             "error",
+            "-progress",
+            "pipe:1",
+            "-nostats",
             "-y",
             "-i",
             request.InputPath,
@@ -39,7 +53,7 @@ public static class FfmpegExportCommandBuilder
         arguments.AddRange(codecArguments);
         arguments.Add(request.OutputPath);
 
-        return new ExportCommandPlan(filterGraph, arguments, usesHardwareAcceleration);
+        return new ExportCommandPlan(filterGraph, arguments, usesHardwareAcceleration, encoderLabel);
     }
 
     private static string BuildFilterGraph(IReadOnlyList<KeepSegment> keepSegments)
@@ -82,6 +96,15 @@ public static class FfmpegExportCommandBuilder
     private static string FormatSeconds(TimeSpan value) =>
         value.TotalSeconds.ToString("0.######", CultureInfo.InvariantCulture);
 
+    private static OutputFormat ResolveOutputFormat(string outputPath)
+    {
+        var extension = Path.GetExtension(outputPath);
+
+        return extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            ? OutputFormat.Mov
+            : OutputFormat.Mp4;
+    }
+
     private static IReadOnlyList<string> BuildHardwareCodecArguments(ExportPreset preset)
     {
         var options = ResolveHardwareCodecOptions(preset);
@@ -108,6 +131,25 @@ public static class FfmpegExportCommandBuilder
             options.AudioBitrate,
             "-movflags",
             "+faststart"
+        };
+    }
+
+    private static IReadOnlyList<string> BuildMovCodecArguments(ExportPreset preset)
+    {
+        var profile = ResolveMovProfile(preset);
+
+        return new[]
+        {
+            "-c:v",
+            "prores_ks",
+            "-profile:v",
+            profile.ToString(CultureInfo.InvariantCulture),
+            "-vendor",
+            "apl0",
+            "-pix_fmt",
+            "yuv422p10le",
+            "-c:a",
+            "pcm_s16le"
         };
     }
 
@@ -149,4 +191,18 @@ public static class FfmpegExportCommandBuilder
             ExportPreset.SmallerFile => ("3500k", "128k"),
             _ => ("5500k", "160k")
         };
+
+    private static int ResolveMovProfile(ExportPreset preset) =>
+        preset switch
+        {
+            ExportPreset.HigherQuality => 3,
+            ExportPreset.SmallerFile => 1,
+            _ => 2
+        };
+
+    private enum OutputFormat
+    {
+        Mp4,
+        Mov
+    }
 }

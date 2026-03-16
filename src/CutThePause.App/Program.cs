@@ -1,5 +1,4 @@
 using Avalonia;
-
 namespace CutThePause.App;
 
 internal sealed class Program

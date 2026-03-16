@@ -56,12 +56,58 @@ public sealed class RealVideoSmokeTests
                 analysis.CutCandidates,
                 ExportPreset.SmallerFile);
 
-            await workflow.ExportAsync(request, CancellationToken.None);
+            await workflow.ExportAsync(request, null, CancellationToken.None);
 
             Assert.True(File.Exists(outputPath));
 
             var outputMetadata = await metadataReader.ReadAsync(outputPath, CancellationToken.None);
             Assert.True(outputMetadata.Duration < analysis.Duration);
+        }
+        finally
+        {
+            if (File.Exists(outputPath))
+            {
+                File.Delete(outputPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ExportMovMaster_WithProvidedRealClip_WritesMovOutput()
+    {
+        var repoRoot = ResolveRepoRoot();
+        var inputPath = Path.Combine(repoRoot, "Real Test Video", "IMG_0278.MOV");
+
+        if (!File.Exists(inputPath))
+        {
+            return;
+        }
+
+        var outputPath = Path.Combine(Path.GetTempPath(), $"cut-the-pause-master-{Guid.NewGuid():N}.mov");
+        var ffmpegLocator = new DefaultFfmpegLocator();
+        var ffmpegRunner = new ProcessFfmpegRunner();
+        var metadataReader = new FfmpegVideoMetadataReader(ffmpegLocator, ffmpegRunner);
+        var exporter = new FfmpegVideoExporter(ffmpegLocator, ffmpegRunner);
+
+        try
+        {
+            var metadata = await metadataReader.ReadAsync(inputPath, CancellationToken.None);
+            var request = new ExportRequest(
+                inputPath,
+                outputPath,
+                metadata.Duration,
+                ExportPreset.HigherQuality,
+                Array.Empty<CutCandidate>(),
+                new[]
+                {
+                    new KeepSegment(0, TimeSpan.Zero, TimeSpan.FromSeconds(5))
+                });
+
+            await exporter.ExportAsync(request, null, CancellationToken.None);
+
+            Assert.True(File.Exists(outputPath));
+            var outputMetadata = await metadataReader.ReadAsync(outputPath, CancellationToken.None);
+            Assert.True(outputMetadata.Duration > TimeSpan.Zero);
         }
         finally
         {

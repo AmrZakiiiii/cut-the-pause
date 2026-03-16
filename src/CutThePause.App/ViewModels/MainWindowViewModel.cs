@@ -24,6 +24,11 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _originalDurationText = "--";
     private string _removedDurationText = "--";
     private string _outputDurationText = "--";
+    private bool _isExporting;
+    private double _exportProgressValue;
+    private string _exportProgressPercentText = "0%";
+    private string _exportProgressStageText = "Waiting to start export.";
+    private string _exportProgressDetailText = "No export in progress.";
 
     public MainWindowViewModel(VideoWorkflowService workflowService)
     {
@@ -42,13 +47,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public string SuggestedOutputFileName => string.IsNullOrWhiteSpace(_inputPath)
         ? "trimmed-video.mp4"
-        : $"{Path.GetFileNameWithoutExtension(_inputPath)}.trimmed.mp4";
+        : $"{Path.GetFileNameWithoutExtension(_inputPath)}.trimmed{ResolvePreferredOutputExtension(_inputPath)}";
 
     public bool HasInput => !string.IsNullOrWhiteSpace(_inputPath);
 
     public bool CanAnalyze => !_isBusy && HasInput;
 
     public bool CanExport => !_isBusy && _analysisResult is not null && !string.IsNullOrWhiteSpace(_outputPath);
+
+    public bool IsExporting
+    {
+        get => _isExporting;
+        private set => SetProperty(ref _isExporting, value);
+    }
 
     public bool HasCuts => CutCandidates.Count > 0;
 
@@ -134,6 +145,30 @@ public sealed class MainWindowViewModel : ViewModelBase
         private set => SetProperty(ref _outputDurationText, value);
     }
 
+    public double ExportProgressValue
+    {
+        get => _exportProgressValue;
+        private set => SetProperty(ref _exportProgressValue, value);
+    }
+
+    public string ExportProgressPercentText
+    {
+        get => _exportProgressPercentText;
+        private set => SetProperty(ref _exportProgressPercentText, value);
+    }
+
+    public string ExportProgressStageText
+    {
+        get => _exportProgressStageText;
+        private set => SetProperty(ref _exportProgressStageText, value);
+    }
+
+    public string ExportProgressDetailText
+    {
+        get => _exportProgressDetailText;
+        private set => SetProperty(ref _exportProgressDetailText, value);
+    }
+
     public void SetInputPath(string path)
     {
         _inputPath = path;
@@ -198,13 +233,15 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             SetBusy(true, "Rendering trimmed video with FFmpeg...");
             var request = BuildExportRequest();
+            var progress = new Progress<VideoExportProgress>(OnExportProgressReported);
             var outputDirectory = Path.GetDirectoryName(_outputPath);
             if (!string.IsNullOrWhiteSpace(outputDirectory))
             {
                 Directory.CreateDirectory(outputDirectory);
             }
 
-            await _workflowService.ExportAsync(request, CancellationToken.None);
+            BeginExportPresentation(request);
+            await _workflowService.ExportAsync(request, progress, CancellationToken.None);
             StatusMessage = $"Export complete: {_outputPath}";
         }
         catch (Exception exception)
@@ -214,6 +251,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            EndExportPresentation();
             SetBusy(false, StatusMessage);
         }
     }
@@ -350,8 +388,39 @@ public sealed class MainWindowViewModel : ViewModelBase
     private static string SuggestOutputPath(string inputPath)
     {
         var directory = Path.GetDirectoryName(inputPath) ?? Environment.CurrentDirectory;
-        var fileName = $"{Path.GetFileNameWithoutExtension(inputPath)}.trimmed.mp4";
+        var fileName = $"{Path.GetFileNameWithoutExtension(inputPath)}.trimmed{ResolvePreferredOutputExtension(inputPath)}";
         return Path.Combine(directory, fileName);
+    }
+
+    private void BeginExportPresentation(ExportRequest request)
+    {
+        IsExporting = true;
+        ExportProgressValue = 0d;
+        ExportProgressPercentText = "0%";
+        ExportProgressStageText = "Preparing export...";
+        ExportProgressDetailText = $"Target: {Path.GetExtension(request.OutputPath).ToLowerInvariant()}";
+    }
+
+    private void EndExportPresentation()
+    {
+        IsExporting = false;
+    }
+
+    private void OnExportProgressReported(VideoExportProgress progress)
+    {
+        ExportProgressValue = Math.Clamp(progress.FractionComplete * 100d, 0d, 100d);
+        ExportProgressPercentText = $"{ExportProgressValue:0}%";
+        ExportProgressStageText = progress.Stage;
+        ExportProgressDetailText = $"{progress.EncoderLabel} · {FormatDuration(progress.EncodedDuration)} / {FormatDuration(progress.TotalDuration)}";
+    }
+
+    private static string ResolvePreferredOutputExtension(string inputPath)
+    {
+        var extension = Path.GetExtension(inputPath);
+
+        return extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            ? ".mov"
+            : ".mp4";
     }
 
     private static int ParseInteger(string? text, int fallback) =>

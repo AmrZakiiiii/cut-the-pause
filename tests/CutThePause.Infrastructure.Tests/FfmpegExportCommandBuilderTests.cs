@@ -23,9 +23,11 @@ public sealed class FfmpegExportCommandBuilderTests
         var commandPlan = FfmpegExportCommandBuilder.Build(request);
 
         Assert.Contains("concat=n=2:v=1:a=1[outv][outa]", commandPlan.FilterGraph);
+        Assert.Contains("pipe:1", commandPlan.Arguments);
         Assert.Contains("libx264", commandPlan.Arguments);
         Assert.Contains("24", commandPlan.Arguments);
         Assert.False(commandPlan.UsesHardwareAcceleration);
+        Assert.Equal("Software H.264", commandPlan.EncoderLabel);
         Assert.Equal("output.mp4", commandPlan.Arguments[^1]);
     }
 
@@ -53,5 +55,29 @@ public sealed class FfmpegExportCommandBuilderTests
         Assert.Contains("h264_videotoolbox", commandPlan.Arguments);
         Assert.Contains("5500k", commandPlan.Arguments);
         Assert.True(commandPlan.UsesHardwareAcceleration);
+        Assert.Equal("VideoToolbox H.264", commandPlan.EncoderLabel);
+    }
+
+    [Fact]
+    public void Build_ForMovOutput_UsesProResMasterEncoding()
+    {
+        var request = new ExportRequest(
+            "input.mov",
+            "output.mov",
+            TimeSpan.FromSeconds(10),
+            ExportPreset.HigherQuality,
+            Array.Empty<CutCandidate>(),
+            new[]
+            {
+                new KeepSegment(0, TimeSpan.Zero, TimeSpan.FromSeconds(3))
+            });
+
+        var commandPlan = FfmpegExportCommandBuilder.Build(request, preferHardwareAcceleration: true);
+
+        Assert.Contains("prores_ks", commandPlan.Arguments);
+        Assert.Contains("pcm_s16le", commandPlan.Arguments);
+        Assert.Contains("3", commandPlan.Arguments);
+        Assert.False(commandPlan.UsesHardwareAcceleration);
+        Assert.Equal("ProRes MOV master", commandPlan.EncoderLabel);
     }
 }

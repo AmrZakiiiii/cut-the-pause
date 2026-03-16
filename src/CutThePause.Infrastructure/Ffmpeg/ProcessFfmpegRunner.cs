@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using CutThePause.Infrastructure.Abstractions;
 using CutThePause.Infrastructure.Models;
 
@@ -9,19 +10,18 @@ public sealed class ProcessFfmpegRunner : IFfmpegRunner
     public async Task<ProcessResult> RunAsync(
         string executablePath,
         IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken) =>
+        await RunInternalAsync(executablePath, arguments, null, cancellationToken).ConfigureAwait(false);
+
+    public async Task<ProcessResult> RunWithProgressAsync(
+        string executablePath,
+        IReadOnlyList<string> arguments,
+        Action<string> onStandardOutputLine,
         CancellationToken cancellationToken)
     {
-        using var process = CreateProcess(executablePath, arguments);
-        process.Start();
+        ArgumentNullException.ThrowIfNull(onStandardOutputLine);
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-
-        await process.WaitForExitAsync(cancellationToken);
-        var stdout = await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-
-        return new ProcessResult(process.ExitCode, stdout, stderr);
+        return await RunInternalAsync(executablePath, arguments, onStandardOutputLine, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<BinaryProcessResult> RunBinaryAsync(
@@ -41,6 +41,39 @@ public sealed class ProcessFfmpegRunner : IFfmpegRunner
         var stderr = await stderrTask.ConfigureAwait(false);
 
         return new BinaryProcessResult(process.ExitCode, output.ToArray(), stderr);
+    }
+
+    private static async Task<ProcessResult> RunInternalAsync(
+        string executablePath,
+        IReadOnlyList<string> arguments,
+        Action<string>? onStandardOutputLine,
+        CancellationToken cancellationToken)
+    {
+        using var process = CreateProcess(executablePath, arguments);
+        var standardOutput = new StringBuilder();
+
+        process.Start();
+
+        var stdoutTask = Task.Run(async () =>
+        {
+            while (true)
+            {
+                var line = await process.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                if (line is null)
+                {
+                    break;
+                }
+
+                standardOutput.AppendLine(line);
+                onStandardOutputLine?.Invoke(line);
+            }
+        }, cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await Task.WhenAll(stdoutTask, process.WaitForExitAsync(cancellationToken)).ConfigureAwait(false);
+        var stderr = await stderrTask.ConfigureAwait(false);
+
+        return new ProcessResult(process.ExitCode, standardOutput.ToString(), stderr);
     }
 
     private static Process CreateProcess(string executablePath, IReadOnlyList<string> arguments)

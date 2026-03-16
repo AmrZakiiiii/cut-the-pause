@@ -4,5 +4,8 @@ namespace CutThePause.Infrastructure.Abstractions;
 
 public interface IVideoExporter
 {
-    Task ExportAsync(ExportRequest request, CancellationToken cancellationToken);
+    Task ExportAsync(
+        ExportRequest request,
+        IProgress<VideoExportProgress>? progress,
+        CancellationToken cancellationToken);
 }
