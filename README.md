@@ -4,15 +4,6 @@ Cut The Pause is a mac-first desktop app for solo creators who are tired of manu
 
 ![Cut The Pause app window](docs/images/app-overview.png)
 
-## Showcase
-
-- Desktop app overview:
-  - the current macOS build with the review-first trimming UI
-- Visual identity board:
-  - the agreed brand direction that informs the app colors, icon, and README presentation
-
-![Cut The Pause visual identity board](docs/images/visual-identity-board.png)
-
 ## Visual Identity
 
 - The product direction is dark slate, electric cyan, and warm amber.
