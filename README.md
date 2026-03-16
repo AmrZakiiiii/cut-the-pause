@@ -76,7 +76,7 @@ If the Silero model is not present, the app still works with the built-in energy
 ### Launch The Packaged App
 
 ```bash
-open "/Users/amrzaky/Desktop/Video Silence Removal/artifacts/release/Cut The Pause.app"
+open "/Video Silence Removal/artifacts/release/Cut The Pause.app"
 ```
 
 If macOS blocks the bundle because it is unsigned, right-click the app once in Finder and choose `Open`.
@@ -98,4 +98,4 @@ If macOS blocks the bundle because it is unsigned, right-click the app once in F
 
 ## License
 
-The repository is licensed under MIT. FFmpeg and the Silero VAD model remain subject to their own licenses; see [THIRD_PARTY_NOTICES.md](/Users/amrzaky/Desktop/Video Silence Removal/THIRD_PARTY_NOTICES.md).
+The repository is licensed under MIT. FFmpeg and the Silero VAD model remain subject to their own licenses; see [THIRD_PARTY_NOTICES.md](/Video Silence Removal/THIRD_PARTY_NOTICES.md).
