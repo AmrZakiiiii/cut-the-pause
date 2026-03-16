@@ -17,8 +17,6 @@ Cut The Pause is a mac-first desktop app for solo creators who are tired of manu
 
 ## Visual Identity
 
-![Cut The Pause visual identity board](docs/images/visual-identity-board.png)
-
 - The product direction is dark slate, electric cyan, and warm amber.
 - The in-app UI follows the stronger ChatGPT concept board: timeline rhythm, pause removal, and creator-tool clarity.
 - The shipped app icon uses the simplified Gemini mark adapted into the macOS bundle and in-app branding surfaces.
