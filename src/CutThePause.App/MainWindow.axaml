@@ -236,16 +236,30 @@
       <TextBlock Foreground="{StaticResource BrandTextBrush}" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
     </Border>
 
-    <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Background="#B20B111A" CornerRadius="28" IsVisible="{Binding IsExporting}">
+    <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Background="#B20B111A" CornerRadius="28" IsVisible="{Binding ShowExportOverlay}">
       <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
         <Border Width="420" Background="#101923" BorderBrush="#2A394B" BorderThickness="1" CornerRadius="28" Padding="24">
           <StackPanel Spacing="16">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
               <controls:BrandIcon Width="62" Height="62" />
               <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                <TextBlock FontSize="28" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="Export In Progress" />
-                <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Cut The Pause is rendering your trimmed timeline now." TextWrapping="Wrap" />
+                <TextBlock FontSize="28" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="{Binding ExportOverlayTitle}" />
+                <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="{Binding ExportOverlaySubtitle}" TextWrapping="Wrap" />
               </StackPanel>
+
+              <Button
+                  Grid.Column="1"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Top"
+                  Background="Transparent"
+                  BorderBrush="Transparent"
+                  Click="OnDismissExportOverlayClick"
+                  Content="✕"
+                  Foreground="{StaticResource BrandMutedBrush}"
+                  FontSize="18"
+                  FontWeight="Bold"
+                  IsVisible="{Binding IsExportCompleted}"
+                  Padding="8,2" />
             </Grid>
 
             <Border Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="20">
@@ -256,6 +270,24 @@
                 <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="{Binding ExportProgressDetailText}" TextAlignment="Center" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" IsVisible="{Binding IsExportCompleted}">
+              <Button
+                  Background="{StaticResource BrandPanelAltBrush}"
+                  BorderBrush="{StaticResource BrandBorderBrush}"
+                  Click="OnRevealExportedFileClick"
+                  Content="Reveal File"
+                  Foreground="{StaticResource BrandTextBrush}"
+                  Padding="16,10" />
+              <Button
+                  Background="{StaticResource BrandWarmBrush}"
+                  BorderBrush="{StaticResource BrandWarmBrush}"
+                  Click="OnDismissExportOverlayClick"
+                  Content="Close"
+                  Foreground="#231408"
+                  FontWeight="Bold"
+                  Padding="16,10" />
+            </StackPanel>
           </StackPanel>
         </Border>
       </Grid>

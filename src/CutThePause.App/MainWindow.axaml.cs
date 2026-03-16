@@ -70,4 +70,8 @@ public partial class MainWindow : Window
     private void OnResetClick(object? sender, RoutedEventArgs e) => ViewModel.ResetReview();
 
     private void OnOpenSourceClick(object? sender, RoutedEventArgs e) => ViewModel.OpenInputFile();
+
+    private void OnDismissExportOverlayClick(object? sender, RoutedEventArgs e) => ViewModel.DismissExportOverlay();
+
+    private void OnRevealExportedFileClick(object? sender, RoutedEventArgs e) => ViewModel.RevealExportedFile();
 }

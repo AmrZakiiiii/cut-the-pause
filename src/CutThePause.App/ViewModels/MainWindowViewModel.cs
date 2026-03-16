@@ -25,10 +25,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _removedDurationText = "--";
     private string _outputDurationText = "--";
     private bool _isExporting;
+    private bool _isExportCompleted;
     private double _exportProgressValue;
     private string _exportProgressPercentText = "0%";
     private string _exportProgressStageText = "Waiting to start export.";
     private string _exportProgressDetailText = "No export in progress.";
+    private string _exportOverlayTitle = "Export In Progress";
+    private string _exportOverlaySubtitle = "Cut The Pause is rendering your trimmed timeline now.";
+    private string _exportedOutputPath = string.Empty;
 
     public MainWindowViewModel(VideoWorkflowService workflowService)
     {
@@ -60,6 +64,20 @@ public sealed class MainWindowViewModel : ViewModelBase
         get => _isExporting;
         private set => SetProperty(ref _isExporting, value);
     }
+
+    public bool IsExportCompleted
+    {
+        get => _isExportCompleted;
+        private set
+        {
+            if (SetProperty(ref _isExportCompleted, value))
+            {
+                OnPropertyChanged(nameof(ShowExportOverlay));
+            }
+        }
+    }
+
+    public bool ShowExportOverlay => IsExporting || IsExportCompleted;
 
     public bool HasCuts => CutCandidates.Count > 0;
 
@@ -169,6 +187,24 @@ public sealed class MainWindowViewModel : ViewModelBase
         private set => SetProperty(ref _exportProgressDetailText, value);
     }
 
+    public string ExportOverlayTitle
+    {
+        get => _exportOverlayTitle;
+        private set => SetProperty(ref _exportOverlayTitle, value);
+    }
+
+    public string ExportOverlaySubtitle
+    {
+        get => _exportOverlaySubtitle;
+        private set => SetProperty(ref _exportOverlaySubtitle, value);
+    }
+
+    public string ExportedOutputPath
+    {
+        get => _exportedOutputPath;
+        private set => SetProperty(ref _exportedOutputPath, value);
+    }
+
     public void SetInputPath(string path)
     {
         _inputPath = path;
@@ -243,6 +279,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             BeginExportPresentation(request);
             await _workflowService.ExportAsync(request, progress, CancellationToken.None);
             StatusMessage = $"Export complete: {_outputPath}";
+            CompleteExportPresentation(request);
         }
         catch (Exception exception)
         {
@@ -251,9 +288,53 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         finally
         {
-            EndExportPresentation();
+            if (!IsExportCompleted)
+            {
+                EndExportPresentation();
+            }
+
             SetBusy(false, StatusMessage);
         }
+    }
+
+    public async Task LoadShowcaseAsync(string inputPath, bool analyze)
+    {
+        if (string.IsNullOrWhiteSpace(inputPath) || !File.Exists(inputPath))
+        {
+            return;
+        }
+
+        SetInputPath(inputPath);
+
+        if (analyze)
+        {
+            await AnalyzeAsync();
+        }
+    }
+
+    public void DismissExportOverlay()
+    {
+        IsExporting = false;
+        IsExportCompleted = false;
+    }
+
+    public void RevealExportedFile()
+    {
+        if (string.IsNullOrWhiteSpace(_outputPath) || !File.Exists(_outputPath))
+        {
+            return;
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            var process = new ProcessStartInfo("open");
+            process.ArgumentList.Add("-R");
+            process.ArgumentList.Add(_outputPath);
+            Process.Start(process);
+            return;
+        }
+
+        OpenInputFile();
     }
 
     public void ResetReview()
@@ -395,15 +476,35 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void BeginExportPresentation(ExportRequest request)
     {
         IsExporting = true;
+        IsExportCompleted = false;
         ExportProgressValue = 0d;
         ExportProgressPercentText = "0%";
+        ExportOverlayTitle = "Export In Progress";
+        ExportOverlaySubtitle = "Cut The Pause is rendering your trimmed timeline now.";
         ExportProgressStageText = "Preparing export...";
         ExportProgressDetailText = $"Target: {Path.GetExtension(request.OutputPath).ToLowerInvariant()}";
+        ExportedOutputPath = request.OutputPath;
+        OnPropertyChanged(nameof(ShowExportOverlay));
+    }
+
+    private void CompleteExportPresentation(ExportRequest request)
+    {
+        IsExporting = false;
+        IsExportCompleted = true;
+        ExportProgressValue = 100d;
+        ExportProgressPercentText = "100%";
+        ExportOverlayTitle = "Export Complete";
+        ExportOverlaySubtitle = "Your trimmed video is ready. Review the path below or reveal it in Finder.";
+        ExportProgressStageText = "Render finished successfully.";
+        ExportProgressDetailText = request.OutputPath;
+        ExportedOutputPath = request.OutputPath;
     }
 
     private void EndExportPresentation()
     {
         IsExporting = false;
+        IsExportCompleted = false;
+        OnPropertyChanged(nameof(ShowExportOverlay));
     }
 
     private void OnExportProgressReported(VideoExportProgress progress)
