@@ -35,12 +35,12 @@
       <ScrollViewer>
         <StackPanel Spacing="20">
           <Border Background="#0B1220" CornerRadius="24" Padding="18" BorderBrush="#243141" BorderThickness="1">
-            <Grid RowDefinitions="Auto,Auto,Auto">
-              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-                <controls:BrandIcon Width="86" Height="86" />
+            <Grid RowDefinitions="Auto,Auto">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                <controls:BrandIcon Width="74" Height="74" />
 
                 <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock FontSize="34" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}">
+                  <TextBlock FontSize="30" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}">
                     <Run Text="Cut The " />
                     <Run Foreground="{StaticResource BrandCyanBrush}" Text="Pause" />
                   </TextBlock>
@@ -59,13 +59,6 @@
                   StrokeLineCap="Round"
                   StrokeJoin="Round"
                   StrokeThickness="3" />
-
-              <TextBlock
-                  Grid.Row="2"
-                  Margin="0,18,0,0"
-                  Foreground="{StaticResource BrandMutedBrush}"
-                  Text="Chosen direction from your generated identity: the ChatGPT concept drives the dark slate, cyan, and warm amber UI, while the Gemini mark now ships as the app icon."
-                  TextWrapping="Wrap" />
             </Grid>
           </Border>
 
@@ -159,7 +152,7 @@
                     Foreground="#231408"
                     FontWeight="Bold"
                     IsEnabled="{Binding CanExport}"
-                    Padding="18,12" />
+                    Padding="16,10" />
               </StackPanel>
               <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Choose `.mp4` for fast delivery or `.mov` for a high-quality ProRes master that is friendlier for editing workflows." TextWrapping="Wrap" />
             </StackPanel>
