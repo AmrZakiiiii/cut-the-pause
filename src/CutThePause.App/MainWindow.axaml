@@ -240,13 +240,13 @@
       <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
         <Border Width="420" Background="#101923" BorderBrush="#2A394B" BorderThickness="1" CornerRadius="28" Padding="24">
           <StackPanel Spacing="16">
-            <StackPanel Orientation="Horizontal" Spacing="14">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
               <controls:BrandIcon Width="62" Height="62" />
-              <StackPanel Spacing="4" VerticalAlignment="Center">
+              <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                 <TextBlock FontSize="28" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="Export In Progress" />
                 <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Cut The Pause is rendering your trimmed timeline now." TextWrapping="Wrap" />
               </StackPanel>
-            </StackPanel>
+            </Grid>
 
             <Border Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="20">
               <StackPanel Spacing="10">
