@@ -2,9 +2,10 @@ namespace CutThePause.Infrastructure.Models;
 
 public sealed class PcmAudioFile : IAsyncDisposable
 {
+    private readonly bool _ownsFile;
     private int _disposed;
 
-    public PcmAudioFile(string filePath, int sampleRate, long sampleCount)
+    public PcmAudioFile(string filePath, int sampleRate, long sampleCount, bool ownsFile = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
@@ -21,6 +22,7 @@ public sealed class PcmAudioFile : IAsyncDisposable
         FilePath = filePath;
         SampleRate = sampleRate;
         SampleCount = sampleCount;
+        _ownsFile = ownsFile;
     }
 
     public string FilePath { get; }
@@ -46,7 +48,7 @@ public sealed class PcmAudioFile : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        if (Interlocked.Exchange(ref _disposed, 1) == 0 && _ownsFile)
         {
             TryDeleteFile(FilePath);
         }

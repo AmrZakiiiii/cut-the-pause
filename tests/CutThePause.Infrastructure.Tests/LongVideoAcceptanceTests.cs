@@ -193,7 +193,7 @@ public sealed class LongVideoAcceptanceTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             var sampleCount = new FileInfo(_path).Length / sizeof(float);
-            return Task.FromResult(new PcmAudioFile(_path, 16_000, sampleCount));
+            return Task.FromResult(new PcmAudioFile(_path, 16_000, sampleCount, ownsFile: false));
         }
     }
 }
