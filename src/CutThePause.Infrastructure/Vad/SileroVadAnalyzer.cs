@@ -8,7 +8,7 @@ using System.Reflection;
 
 namespace CutThePause.Infrastructure.Vad;
 
-public sealed class SileroVadAnalyzer : IVadAnalyzer
+public sealed class SileroVadAnalyzer : IVadAnalyzer, IStreamingVadAnalyzer
 {
     private static readonly object NativeRuntimeLock = new();
     private static bool _nativeRuntimeLoaded;

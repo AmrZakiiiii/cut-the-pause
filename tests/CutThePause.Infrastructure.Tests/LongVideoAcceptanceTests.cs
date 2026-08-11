@@ -2,7 +2,9 @@ using System.Globalization;
 using CutThePause.Core.Models;
 using CutThePause.Core.Services;
 using CutThePause.Infrastructure;
+using CutThePause.Infrastructure.Abstractions;
 using CutThePause.Infrastructure.Ffmpeg;
+using CutThePause.Infrastructure.Models;
 using CutThePause.Infrastructure.Vad;
 
 namespace CutThePause.Infrastructure.Tests;
@@ -37,7 +39,7 @@ public sealed class LongVideoAcceptanceTests
         var ffmpegLocator = new DefaultFfmpegLocator();
         var ffmpegRunner = new ProcessFfmpegRunner();
         var metadataReader = new FfmpegVideoMetadataReader(ffmpegLocator, ffmpegRunner);
-        var audioExtractor = new FfmpegAudioExtractor(ffmpegLocator, ffmpegRunner);
+        var audioExtractor = ResolveAudioExtractor(ffmpegLocator, ffmpegRunner);
         var exporter = new FfmpegVideoExporter(ffmpegLocator, ffmpegRunner);
         var vadAnalyzer = new FallbackVadAnalyzer(new SileroVadAnalyzer(modelPath), new EnergyVadAnalyzer());
         var workflow = new VideoWorkflowService(metadataReader, audioExtractor, vadAnalyzer, exporter);
@@ -117,6 +119,16 @@ public sealed class LongVideoAcceptanceTests
             ?? Path.Combine(repositoryRoot?.FullName ?? inputDirectory, "assets", "models", "silero_vad.onnx");
     }
 
+    private static IAudioExtractor ResolveAudioExtractor(
+        IFfmpegLocator ffmpegLocator,
+        IFfmpegRunner ffmpegRunner)
+    {
+        var pcmPath = Environment.GetEnvironmentVariable("CUTTHEPAUSE_LONG_VIDEO_PCM_PATH");
+        return !string.IsNullOrWhiteSpace(pcmPath) && File.Exists(pcmPath)
+            ? new PreExtractedAudioFile(pcmPath)
+            : new FfmpegAudioExtractor(ffmpegLocator, ffmpegRunner);
+    }
+
     private static ExportRequest BuildExportRequest(
         string inputPath,
         string outputPath,
@@ -163,5 +175,25 @@ public sealed class LongVideoAcceptanceTests
         }
 
         return limited;
+    }
+
+    private sealed class PreExtractedAudioFile : IAudioExtractor, IChunkedAudioExtractor
+    {
+        private readonly string _path;
+
+        public PreExtractedAudioFile(string path)
+        {
+            _path = path;
+        }
+
+        public Task<PcmAudioData> ExtractAsync(string inputPath, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The long-video acceptance test uses the file-backed audio path.");
+
+        public Task<PcmAudioFile> ExtractToFileAsync(string inputPath, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sampleCount = new FileInfo(_path).Length / sizeof(float);
+            return Task.FromResult(new PcmAudioFile(_path, 16_000, sampleCount));
+        }
     }
 }
