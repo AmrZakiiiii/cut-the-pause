@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
+using CutThePause.App.Services;
 using CutThePause.Core.Models;
 using CutThePause.Core.Services;
 using CutThePause.Infrastructure;
@@ -9,6 +11,7 @@ namespace CutThePause.App.ViewModels;
 public sealed class MainWindowViewModel : ViewModelBase
 {
     private readonly VideoWorkflowService _workflowService;
+    private readonly IAnalysisSettingsStore _settingsStore;
     private AnalysisResult? _analysisResult;
     private string? _inputPath;
     private string? _outputPath;
@@ -34,9 +37,17 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _exportOverlaySubtitle = "Cut The Pause is rendering your trimmed timeline now.";
     private string _exportedOutputPath = string.Empty;
 
-    public MainWindowViewModel(VideoWorkflowService workflowService)
+    public MainWindowViewModel(VideoWorkflowService workflowService, IAnalysisSettingsStore? settingsStore = null)
     {
         _workflowService = workflowService;
+        _settingsStore = settingsStore ?? new JsonAnalysisSettingsStore();
+        var preferences = _settingsStore.Load();
+        _minSilenceMsText = preferences.MinSilenceMs.ToString(CultureInfo.InvariantCulture);
+        _minSpeechMsText = preferences.MinSpeechMs.ToString(CultureInfo.InvariantCulture);
+        _paddingBeforeMsText = preferences.PaddingBeforeMs.ToString(CultureInfo.InvariantCulture);
+        _paddingAfterMsText = preferences.PaddingAfterMs.ToString(CultureInfo.InvariantCulture);
+        _speechThresholdText = preferences.SpeechThreshold.ToString("0.##", CultureInfo.InvariantCulture);
+        _selectedPreset = preferences.ExportPreset;
         CutCandidates = new ObservableCollection<CutCandidateItemViewModel>();
         PresetOptions = Enum.GetValues<ExportPreset>();
     }
@@ -106,31 +117,61 @@ public sealed class MainWindowViewModel : ViewModelBase
     public string MinSilenceMsText
     {
         get => _minSilenceMsText;
-        set => SetProperty(ref _minSilenceMsText, value);
+        set
+        {
+            if (SetProperty(ref _minSilenceMsText, value))
+            {
+                PersistSettingsIfValid();
+            }
+        }
     }
 
     public string MinSpeechMsText
     {
         get => _minSpeechMsText;
-        set => SetProperty(ref _minSpeechMsText, value);
+        set
+        {
+            if (SetProperty(ref _minSpeechMsText, value))
+            {
+                PersistSettingsIfValid();
+            }
+        }
     }
 
     public string PaddingBeforeMsText
     {
         get => _paddingBeforeMsText;
-        set => SetProperty(ref _paddingBeforeMsText, value);
+        set
+        {
+            if (SetProperty(ref _paddingBeforeMsText, value))
+            {
+                PersistSettingsIfValid();
+            }
+        }
     }
 
     public string PaddingAfterMsText
     {
         get => _paddingAfterMsText;
-        set => SetProperty(ref _paddingAfterMsText, value);
+        set
+        {
+            if (SetProperty(ref _paddingAfterMsText, value))
+            {
+                PersistSettingsIfValid();
+            }
+        }
     }
 
     public string SpeechThresholdText
     {
         get => _speechThresholdText;
-        set => SetProperty(ref _speechThresholdText, value);
+        set
+        {
+            if (SetProperty(ref _speechThresholdText, value))
+            {
+                PersistSettingsIfValid();
+            }
+        }
     }
 
     public ExportPreset SelectedPreset
@@ -141,6 +182,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _selectedPreset, value))
             {
                 RecalculateSummary();
+                PersistSettingsIfValid();
             }
         }
     }
@@ -207,6 +249,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public void SetInputPath(string path)
     {
+        PersistSettingsIfValid();
         _inputPath = path;
         _outputPath = SuggestOutputPath(path);
         _analysisResult = null;
@@ -237,6 +280,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         try
         {
             SetBusy(true, "Analyzing audio and detecting silence...");
+            PersistSettingsIfValid();
             var settings = BuildSettings();
             _analysisResult = await _workflowService.AnalyzeAsync(_inputPath, settings, CancellationToken.None);
 
@@ -387,6 +431,39 @@ public sealed class MainWindowViewModel : ViewModelBase
         ExportPreset = SelectedPreset
     };
 
+    private void PersistSettingsIfValid()
+    {
+        if (!TryBuildPersistedPreferences(out var preferences))
+        {
+            return;
+        }
+
+        _settingsStore.Save(preferences);
+    }
+
+    private bool TryBuildPersistedPreferences(out AnalysisSettingsPreferences preferences)
+    {
+        if (!TryParseInteger(_minSilenceMsText, out var minSilenceMs) || minSilenceMs < 0 ||
+            !TryParseInteger(_minSpeechMsText, out var minSpeechMs) || minSpeechMs <= 0 ||
+            !TryParseInteger(_paddingBeforeMsText, out var paddingBeforeMs) || paddingBeforeMs < 0 ||
+            !TryParseInteger(_paddingAfterMsText, out var paddingAfterMs) || paddingAfterMs < 0 ||
+            !TryParseFloat(_speechThresholdText, out var speechThreshold) || speechThreshold is < 0f or > 1f ||
+            !float.IsFinite(speechThreshold) || !Enum.IsDefined(SelectedPreset))
+        {
+            preferences = AnalysisSettingsPreferences.Defaults;
+            return false;
+        }
+
+        preferences = new AnalysisSettingsPreferences(
+            minSilenceMs,
+            minSpeechMs,
+            paddingBeforeMs,
+            paddingAfterMs,
+            speechThreshold,
+            SelectedPreset);
+        return true;
+    }
+
     private ExportRequest BuildExportRequest()
     {
         if (_analysisResult is null || string.IsNullOrWhiteSpace(_inputPath) || string.IsNullOrWhiteSpace(_outputPath))
@@ -527,10 +604,16 @@ public sealed class MainWindowViewModel : ViewModelBase
     private static int ParseInteger(string? text, int fallback) =>
         int.TryParse(text, out var parsed) ? parsed : fallback;
 
+    private static bool TryParseInteger(string? text, out int value) =>
+        int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+
     private static float ParseFloat(string? text, float fallback) =>
         float.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : fallback;
+
+    private static bool TryParseFloat(string? text, out float value) =>
+        float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
 
     private static string FormatDuration(TimeSpan value) => value.ToString(@"hh\:mm\:ss\.fff");
 }

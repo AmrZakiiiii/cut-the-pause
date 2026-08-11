@@ -18,10 +18,11 @@ public static class AppBootstrapper
         var fallbackAnalyzer = new EnergyVadAnalyzer();
         var vadAnalyzer = new FallbackVadAnalyzer(sileroAnalyzer, fallbackAnalyzer);
         var workflowService = new VideoWorkflowService(metadataReader, audioExtractor, vadAnalyzer, videoExporter);
+        var settingsStore = new JsonAnalysisSettingsStore();
 
         return new MainWindow
         {
-            DataContext = new MainWindowViewModel(workflowService)
+            DataContext = new MainWindowViewModel(workflowService, settingsStore)
         };
     }
 
