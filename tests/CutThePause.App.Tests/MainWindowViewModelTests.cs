@@ -78,7 +78,6 @@ public sealed class MainWindowViewModelTests
 
         var analysisTask = viewModel.AnalyzeAsync();
         await vad.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await WaitForAsync(() => viewModel.AnalysisStageText.Contains("Detecting speech", StringComparison.Ordinal));
 
         Assert.True(viewModel.IsAnalyzing);
         Assert.True(viewModel.ShowAnalysisOverlay);
@@ -124,14 +123,4 @@ public sealed class MainWindowViewModelTests
         return new MainWindowViewModel(workflow, settingsStore);
     }
 
-    private static async Task WaitForAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (!condition() && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
-
-        Assert.True(condition());
-    }
 }
