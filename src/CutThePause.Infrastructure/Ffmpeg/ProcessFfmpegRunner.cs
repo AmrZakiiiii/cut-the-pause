@@ -49,7 +49,16 @@ public sealed class ProcessFfmpegRunner : IFfmpegRunner
 
         var stderr = await stderrTask.ConfigureAwait(false);
 
-        return new BinaryProcessResult(process.ExitCode, output.ToArray(), stderr);
+        var outputLength = checked((int)output.Length);
+        if (!output.TryGetBuffer(out var outputBuffer) || outputBuffer.Array is null)
+        {
+            throw new InvalidOperationException("FFmpeg output buffer was not accessible.");
+        }
+
+        return new BinaryProcessResult(
+            process.ExitCode,
+            outputBuffer.Array.AsMemory(outputBuffer.Offset, outputLength),
+            stderr);
     }
 
     private static async Task<ProcessResult> RunInternalAsync(

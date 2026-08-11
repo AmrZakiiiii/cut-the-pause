@@ -16,7 +16,18 @@ internal sealed class InMemoryAnalysisSettingsStore : IAnalysisSettingsStore
 
     public AnalysisSettingsPreferences Load() => LastSaved;
 
-    public void Save(AnalysisSettingsPreferences preferences) => LastSaved = preferences;
+    public bool Save(AnalysisSettingsPreferences preferences)
+    {
+        LastSaved = preferences;
+        return true;
+    }
+}
+
+internal sealed class FailingAnalysisSettingsStore : IAnalysisSettingsStore
+{
+    public AnalysisSettingsPreferences Load() => AnalysisSettingsPreferences.Defaults;
+
+    public bool Save(AnalysisSettingsPreferences preferences) => false;
 }
 
 internal sealed class FixedMetadataReader : IVideoMetadataReader
@@ -58,6 +69,7 @@ internal sealed class DelayedVadAnalyzer : IVadAnalyzer
         CancellationToken cancellationToken)
     {
         Started.TrySetResult(true);
+        cancellationToken.Register(() => Completion.TrySetCanceled(cancellationToken));
         return Completion.Task;
     }
 }

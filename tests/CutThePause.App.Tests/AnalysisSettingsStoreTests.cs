@@ -34,7 +34,7 @@ public sealed class AnalysisSettingsStoreTests : IDisposable
         var store = new JsonAnalysisSettingsStore(path);
         var expected = new AnalysisSettingsPreferences(120, 150, 0, 0, 0.5f, ExportPreset.HigherQuality);
 
-        store.Save(expected);
+        Assert.True(store.Save(expected));
 
         Assert.Equal(expected, store.Load());
         Assert.True(File.Exists(path));
@@ -55,6 +55,18 @@ public sealed class AnalysisSettingsStoreTests : IDisposable
         Assert.Equal(120, result.PaddingAfterMs);
         Assert.Equal(0.5f, result.SpeechThreshold);
         Assert.Equal(ExportPreset.SmallerFile, result.ExportPreset);
+    }
+
+    [Fact]
+    public void Save_ReturnsFalseWhenTheSettingsPathCannotBeCreated()
+    {
+        var blockingFile = Path.Combine(_tempDirectory, "not-a-directory");
+        File.WriteAllText(blockingFile, "blocker");
+        var store = new JsonAnalysisSettingsStore(Path.Combine(blockingFile, "settings.json"));
+
+        var saved = store.Save(AnalysisSettingsPreferences.Defaults);
+
+        Assert.False(saved);
     }
 
     public void Dispose()

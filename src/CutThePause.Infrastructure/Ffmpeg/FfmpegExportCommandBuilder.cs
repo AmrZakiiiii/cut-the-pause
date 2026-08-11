@@ -7,11 +7,20 @@ namespace CutThePause.Infrastructure.Ffmpeg;
 
 public static class FfmpegExportCommandBuilder
 {
+    public const int MaxSegmentsPerCommand = 32;
+
     public static ExportCommandPlan Build(ExportRequest request, bool preferHardwareAcceleration = false)
     {
         if (request.KeepSegments.Count == 0)
         {
             throw new InvalidOperationException("At least one keep segment is required to export a trimmed video.");
+        }
+
+        if (request.KeepSegments.Count > MaxSegmentsPerCommand)
+        {
+            throw new ArgumentException(
+                $"An FFmpeg export command may contain at most {MaxSegmentsPerCommand} keep segments. Split the export into bounded batches.",
+                nameof(request));
         }
 
         var filterGraph = BuildFilterGraph(request.KeepSegments);
@@ -21,14 +30,14 @@ public static class FfmpegExportCommandBuilder
         {
             OutputFormat.Mov => BuildMovCodecArguments(request.Preset),
             _ => usesHardwareAcceleration
-                ? BuildHardwareCodecArguments(request.Preset)
-                : BuildSoftwareCodecArguments(request.Preset)
+                ? BuildHardwareHevcCodecArguments(request.Preset)
+                : BuildSoftwareHevcCodecArguments(request.Preset)
         };
         var encoderLabel = outputFormat switch
         {
             OutputFormat.Mov => "ProRes MOV master",
-            _ when usesHardwareAcceleration => "VideoToolbox H.264",
-            _ => "Software H.264"
+            _ when usesHardwareAcceleration => "VideoToolbox HEVC Main 10",
+            _ => "Software HEVC Main 10"
         };
 
         var arguments = new List<string>
@@ -39,16 +48,32 @@ public static class FfmpegExportCommandBuilder
             "-progress",
             "pipe:1",
             "-nostats",
-            "-y",
-            "-i",
-            request.InputPath,
+            "-y"
+        };
+
+        foreach (var segment in request.KeepSegments)
+        {
+            arguments.Add("-ss");
+            arguments.Add(FormatSeconds(segment.Start));
+            arguments.Add("-t");
+            arguments.Add(FormatSeconds(segment.Duration));
+            arguments.Add("-i");
+            arguments.Add(request.InputPath);
+        }
+
+        arguments.AddRange(new[]
+        {
             "-filter_complex",
             filterGraph,
             "-map",
             "[outv]",
             "-map",
             "[outa]",
-        };
+            "-map_metadata",
+            "0",
+            "-map_chapters",
+            "0"
+        });
 
         arguments.AddRange(codecArguments);
         arguments.Add(request.OutputPath);
@@ -62,27 +87,26 @@ public static class FfmpegExportCommandBuilder
 
         for (var index = 0; index < keepSegments.Count; index++)
         {
-            var segment = keepSegments[index];
             builder
-                .Append("[0:v]trim=start=")
-                .Append(FormatSeconds(segment.Start))
-                .Append(":end=")
-                .Append(FormatSeconds(segment.End))
-                .Append(",setpts=PTS-STARTPTS[v")
-                .Append(index)
-                .Append("];")
-                .Append("[0:a]atrim=start=")
-                .Append(FormatSeconds(segment.Start))
-                .Append(":end=")
-                .Append(FormatSeconds(segment.End))
-                .Append(",asetpts=PTS-STARTPTS[a")
-                .Append(index)
+                .Append('[')
+                .Append(index.ToString(CultureInfo.InvariantCulture))
+                .Append(":v]setpts=PTS-STARTPTS[v")
+                .Append(index.ToString(CultureInfo.InvariantCulture))
+                .Append("];[")
+                .Append(index.ToString(CultureInfo.InvariantCulture))
+                .Append(":a]asetpts=PTS-STARTPTS[a")
+                .Append(index.ToString(CultureInfo.InvariantCulture))
                 .Append("];");
         }
 
         for (var index = 0; index < keepSegments.Count; index++)
         {
-            builder.Append("[v").Append(index).Append("][a").Append(index).Append(']');
+            builder
+                .Append("[v")
+                .Append(index.ToString(CultureInfo.InvariantCulture))
+                .Append("][a")
+                .Append(index.ToString(CultureInfo.InvariantCulture))
+                .Append(']');
         }
 
         builder
@@ -105,24 +129,22 @@ public static class FfmpegExportCommandBuilder
             : OutputFormat.Mp4;
     }
 
-    private static IReadOnlyList<string> BuildHardwareCodecArguments(ExportPreset preset)
+    private static IReadOnlyList<string> BuildHardwareHevcCodecArguments(ExportPreset preset)
     {
-        var options = ResolveHardwareCodecOptions(preset);
+        var options = ResolveHardwareHevcCodecOptions(preset);
 
         return new[]
         {
             "-c:v",
-            "h264_videotoolbox",
+            "hevc_videotoolbox",
+            "-profile:v",
+            "main10",
             "-allow_sw",
             "1",
-            "-realtime",
-            "1",
-            "-prio_speed",
-            "1",
-            "-profile:v",
-            "high",
             "-pix_fmt",
-            "yuv420p",
+            "p010le",
+            "-tag:v",
+            "hvc1",
             "-b:v",
             options.VideoBitrate,
             "-c:a",
@@ -153,20 +175,24 @@ public static class FfmpegExportCommandBuilder
         };
     }
 
-    private static IReadOnlyList<string> BuildSoftwareCodecArguments(ExportPreset preset)
+    private static IReadOnlyList<string> BuildSoftwareHevcCodecArguments(ExportPreset preset)
     {
-        var options = ResolveSoftwareCodecOptions(preset);
+        var options = ResolveSoftwareHevcCodecOptions(preset);
 
         return new[]
         {
             "-c:v",
-            "libx264",
+            "libx265",
             "-preset",
             options.Preset,
             "-crf",
             options.Crf.ToString(CultureInfo.InvariantCulture),
+            "-profile:v",
+            "main10",
             "-pix_fmt",
-            "yuv420p",
+            "yuv420p10le",
+            "-tag:v",
+            "hvc1",
             "-c:a",
             "aac",
             "-b:a",
@@ -176,20 +202,20 @@ public static class FfmpegExportCommandBuilder
         };
     }
 
-    private static (string Preset, int Crf, string AudioBitrate) ResolveSoftwareCodecOptions(ExportPreset preset) =>
+    private static (string Preset, int Crf, string AudioBitrate) ResolveSoftwareHevcCodecOptions(ExportPreset preset) =>
         preset switch
         {
-            ExportPreset.HigherQuality => ("fast", 18, "192k"),
-            ExportPreset.SmallerFile => ("faster", 24, "128k"),
-            _ => ("veryfast", 20, "160k")
+            ExportPreset.HigherQuality => ("slow", 16, "192k"),
+            ExportPreset.SmallerFile => ("medium", 22, "128k"),
+            _ => ("medium", 18, "160k")
         };
 
-    private static (string VideoBitrate, string AudioBitrate) ResolveHardwareCodecOptions(ExportPreset preset) =>
+    private static (string VideoBitrate, string AudioBitrate) ResolveHardwareHevcCodecOptions(ExportPreset preset) =>
         preset switch
         {
-            ExportPreset.HigherQuality => ("8000k", "192k"),
-            ExportPreset.SmallerFile => ("3500k", "128k"),
-            _ => ("5500k", "160k")
+            ExportPreset.HigherQuality => ("10000k", "192k"),
+            ExportPreset.SmallerFile => ("5500k", "128k"),
+            _ => ("8000k", "160k")
         };
 
     private static int ResolveMovProfile(ExportPreset preset) =>

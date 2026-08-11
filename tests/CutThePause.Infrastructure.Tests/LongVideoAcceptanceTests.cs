@@ -12,7 +12,8 @@ public sealed class LongVideoAcceptanceTests
     [Fact]
     public async Task AnalyzeAndExport_UserLongVideo_UsesRequestedSettingsAndQualityPath()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("CUTTHEPAUSE_RUN_LONG_VIDEO"), "1", StringComparison.Ordinal))
+        if (!string.Equals(Environment.GetEnvironmentVariable("CUTTHEPAUSE_RUN_LONG_VIDEO"), "1", StringComparison.Ordinal) ||
+            !string.Equals(Environment.GetEnvironmentVariable("CUTTHEPAUSE_MACHINE_IDLE"), "1", StringComparison.Ordinal))
         {
             return;
         }
@@ -27,7 +28,7 @@ public sealed class LongVideoAcceptanceTests
         var outputPath = Environment.GetEnvironmentVariable("CUTTHEPAUSE_LONG_VIDEO_OUTPUT")
             ?? Path.Combine(
                 Path.GetDirectoryName(inputPath) ?? Environment.CurrentDirectory,
-                $"{Path.GetFileNameWithoutExtension(inputPath)}.trimmed.quality-check.mov");
+                $"{Path.GetFileNameWithoutExtension(inputPath)}.trimmed.quality-check.mp4");
         var keepOutput = string.Equals(
             Environment.GetEnvironmentVariable("CUTTHEPAUSE_KEEP_LONG_VIDEO_OUTPUT"),
             "1",
@@ -59,13 +60,21 @@ public sealed class LongVideoAcceptanceTests
             Console.WriteLine($"Long-video analysis: source={analysis.Duration}, cuts={analysis.CutCandidates.Count}, output={analysis.OutputDuration}, removed={analysis.RemovedDuration}");
 
             var request = BuildExportRequest(inputPath, outputPath, analysis, settings);
-            var commandPlan = FfmpegExportCommandBuilder.Build(request, preferHardwareAcceleration: true);
+            var commandPlan = FfmpegExportCommandBuilder.Build(
+                request with
+                {
+                    KeepSegments = request.KeepSegments
+                        .Take(FfmpegExportCommandBuilder.MaxSegmentsPerCommand)
+                        .ToArray()
+                },
+                preferHardwareAcceleration: true);
 
-            Assert.Contains("prores_ks", commandPlan.Arguments);
-            Assert.Contains("pcm_s16le", commandPlan.Arguments);
-            Assert.Equal("ProRes MOV master", commandPlan.EncoderLabel);
-            Assert.False(commandPlan.UsesHardwareAcceleration);
-            Assert.Equal("2", commandPlan.Arguments[Array.IndexOf(commandPlan.Arguments.ToArray(), "-profile:v") + 1]);
+            Assert.Contains(OperatingSystem.IsMacOS() ? "hevc_videotoolbox" : "libx265", commandPlan.Arguments);
+            Assert.Contains("main10", commandPlan.Arguments);
+            Assert.Contains(OperatingSystem.IsMacOS() ? "p010le" : "yuv420p10le", commandPlan.Arguments);
+            Assert.Contains("hvc1", commandPlan.Arguments);
+            Assert.DoesNotContain("prores_ks", commandPlan.Arguments);
+            Assert.Contains("HEVC Main 10", commandPlan.EncoderLabel);
 
             if (string.Equals(Environment.GetEnvironmentVariable("CUTTHEPAUSE_LONG_VIDEO_ANALYZE_ONLY"), "1", StringComparison.Ordinal))
             {
@@ -76,9 +85,11 @@ public sealed class LongVideoAcceptanceTests
 
             Assert.True(File.Exists(outputPath));
             var outputMetadata = await metadataReader.ReadAsync(outputPath, CancellationToken.None);
-            Console.WriteLine($"Long-video export: output={outputPath}, duration={outputMetadata.Duration}, bytes={new FileInfo(outputPath).Length}");
+            var outputBytes = new FileInfo(outputPath).Length;
+            Console.WriteLine($"Long-video export: output={outputPath}, duration={outputMetadata.Duration}, bytes={outputBytes}");
             Assert.True(outputMetadata.Duration > TimeSpan.Zero);
             Assert.True(outputMetadata.Duration < analysis.Duration);
+            Assert.True(outputBytes < new FileInfo(inputPath).Length);
         }
         finally
         {

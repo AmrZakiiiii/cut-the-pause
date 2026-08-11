@@ -10,6 +10,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Closing += OnWindowClosing;
     }
 
     private MainWindowViewModel ViewModel => (MainWindowViewModel)DataContext!;
@@ -74,4 +75,8 @@ public partial class MainWindow : Window
     private void OnDismissExportOverlayClick(object? sender, RoutedEventArgs e) => ViewModel.DismissExportOverlay();
 
     private void OnRevealExportedFileClick(object? sender, RoutedEventArgs e) => ViewModel.RevealExportedFile();
+
+    private void OnCancelOperationClick(object? sender, RoutedEventArgs e) => ViewModel.CancelOperation();
+
+    private void OnWindowClosing(object? sender, WindowClosingEventArgs e) => ViewModel.CancelOperation();
 }

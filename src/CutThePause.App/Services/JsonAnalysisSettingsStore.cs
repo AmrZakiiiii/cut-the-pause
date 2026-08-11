@@ -49,7 +49,7 @@ public sealed class JsonAnalysisSettingsStore : IAnalysisSettingsStore
         }
     }
 
-    public void Save(AnalysisSettingsPreferences preferences)
+    public bool Save(AnalysisSettingsPreferences preferences)
     {
         var normalized = AnalysisSettingsPreferences.Normalize(preferences);
         var temporaryPath = $"{_filePath}.{Guid.NewGuid():N}.tmp";
@@ -65,12 +65,15 @@ public sealed class JsonAnalysisSettingsStore : IAnalysisSettingsStore
             var json = JsonSerializer.Serialize(normalized, SerializerOptions);
             File.WriteAllText(temporaryPath, json);
             File.Move(temporaryPath, _filePath, overwrite: true);
+            return true;
         }
         catch (IOException)
         {
+            return false;
         }
         catch (UnauthorizedAccessException)
         {
+            return false;
         }
         finally
         {

@@ -38,6 +38,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _exportOverlayTitle = "Export In Progress";
     private string _exportOverlaySubtitle = "Cut The Pause is rendering your trimmed timeline now.";
     private string _exportedOutputPath = string.Empty;
+    private CancellationTokenSource? _operationCancellationSource;
 
     public MainWindowViewModel(VideoWorkflowService workflowService, IAnalysisSettingsStore? settingsStore = null)
     {
@@ -79,6 +80,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool CanChooseOutput => !_isBusy;
 
     public bool CanResetReview => !_isBusy;
+
+    public bool CanCancelOperation => _isBusy && _operationCancellationSource is not null;
 
     public bool IsAnalyzing
     {
@@ -322,6 +325,10 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        using var cancellationSource = new CancellationTokenSource();
+        _operationCancellationSource = cancellationSource;
+        OnPropertyChanged(nameof(CanCancelOperation));
+
         try
         {
             SetBusy(true, "Analyzing audio and detecting silence...");
@@ -329,13 +336,17 @@ public sealed class MainWindowViewModel : ViewModelBase
             PersistSettingsIfValid();
             var settings = BuildSettings();
             var progress = new Progress<AnalysisProgress>(OnAnalysisProgressReported);
-            _analysisResult = await _workflowService.AnalyzeAsync(_inputPath, settings, CancellationToken.None, progress);
+            _analysisResult = await _workflowService.AnalyzeAsync(_inputPath, settings, cancellationSource.Token, progress);
 
             PopulateCuts(_analysisResult.CutCandidates);
             WarningsText = string.Join(Environment.NewLine, _analysisResult.Warnings);
             StatusMessage = $"Analysis complete. {_analysisResult.CutCandidates.Count} cut candidates detected.";
             RecalculateSummary();
             RaiseStateProperties();
+        }
+        catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+        {
+            StatusMessage = "Analysis canceled.";
         }
         catch (Exception exception)
         {
@@ -344,6 +355,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            _operationCancellationSource = null;
+            OnPropertyChanged(nameof(CanCancelOperation));
             EndAnalysisPresentation();
             SetBusy(false, StatusMessage);
         }
@@ -351,11 +364,20 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public async Task ExportAsync()
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         if (_analysisResult is null || string.IsNullOrWhiteSpace(_inputPath) || string.IsNullOrWhiteSpace(_outputPath))
         {
             StatusMessage = "Analyze a video and choose an export path before exporting.";
             return;
         }
+
+        using var cancellationSource = new CancellationTokenSource();
+        _operationCancellationSource = cancellationSource;
+        OnPropertyChanged(nameof(CanCancelOperation));
 
         try
         {
@@ -369,9 +391,13 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             BeginExportPresentation(request);
-            await _workflowService.ExportAsync(request, progress, CancellationToken.None);
+            await _workflowService.ExportAsync(request, progress, cancellationSource.Token);
             StatusMessage = $"Export complete: {_outputPath}";
             CompleteExportPresentation(request);
+        }
+        catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+        {
+            StatusMessage = "Export canceled.";
         }
         catch (Exception exception)
         {
@@ -380,6 +406,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            _operationCancellationSource = null;
+            OnPropertyChanged(nameof(CanCancelOperation));
             if (!IsExportCompleted)
             {
                 EndExportPresentation();
@@ -387,6 +415,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             SetBusy(false, StatusMessage);
         }
+    }
+
+    public void CancelOperation()
+    {
+        if (_operationCancellationSource is null || _operationCancellationSource.IsCancellationRequested)
+        {
+            return;
+        }
+
+        StatusMessage = "Canceling current operation...";
+        _operationCancellationSource.Cancel();
+        OnPropertyChanged(nameof(CanCancelOperation));
     }
 
     public async Task LoadShowcaseAsync(string inputPath, bool analyze)
@@ -491,7 +531,10 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        _settingsStore.Save(preferences);
+        if (!_settingsStore.Save(preferences))
+        {
+            StatusMessage = "Detection settings changed, but could not be saved to disk.";
+        }
     }
 
     private bool TryBuildPersistedPreferences(out AnalysisSettingsPreferences preferences)
@@ -596,6 +639,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanRevealSource));
         OnPropertyChanged(nameof(CanChooseOutput));
         OnPropertyChanged(nameof(CanResetReview));
+        OnPropertyChanged(nameof(CanCancelOperation));
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
     }
@@ -665,11 +709,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private static string ResolvePreferredOutputExtension(string inputPath)
     {
-        var extension = Path.GetExtension(inputPath);
-
-        return extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
-            ? ".mov"
-            : ".mp4";
+        return ".mp4";
     }
 
     private static int ParseInteger(string? text, int fallback) =>

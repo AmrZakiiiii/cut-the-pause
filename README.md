@@ -35,19 +35,25 @@ Cut The Pause is a mac-first desktop app for solo creators who are tired of manu
 - Detect speech gaps with a Silero VAD ONNX pipeline when the model is available.
 - Fall back to an energy-based detector when the ONNX model is missing.
 - Review each detected cut and disable any false positives before export.
-- Export a trimmed MP4 for fast delivery or a high-quality MOV ProRes master for editing workflows.
+- Export a compact, high-quality 10-bit HEVC MP4 for delivery or an explicitly selected high-quality MOV ProRes master for editing workflows.
 - Show a dedicated export progress overlay with real FFmpeg percentage updates while rendering.
+- Cancel an in-progress analysis or export without leaving the UI or FFmpeg child process stuck.
 
 ## Performance
 
-- On macOS, exports now prefer `h264_videotoolbox` for hardware-accelerated H.264 encoding.
-- If VideoToolbox export fails, the app automatically falls back to software `libx264`.
-- `.mov` exports use a ProRes-based master path so quality stays editor-friendly instead of forcing everything through a delivery codec.
-- Software presets were tuned for faster iteration:
-  - `Balanced`: `libx264` `veryfast`
-  - `SmallerFile`: `libx264` `faster`
-  - `HigherQuality`: `libx264` `fast`
+- On macOS, MP4 exports prefer `hevc_videotoolbox` Main 10 with a 10-bit `p010le` surface; other platforms and hardware failures use software `libx265` Main 10.
+- The MP4 path keeps 10-bit HEVC instead of converting the source to 8-bit H.264, while its bitrate/CRF presets keep trimmed delivery files close to the source size.
+- `.mov` exports use an explicitly selected ProRes-based master path; ProRes is intentionally much larger and remains available for editing workflows.
+- Long exports render at most 32 keep segments per FFmpeg process, then join the bounded outputs, so a highly fragmented timeline does not open the source thousands of times at once.
+- Long-video analysis keeps decoded PCM in a temporary file and feeds fixed-size frames to VAD, avoiding a full-duration audio array in the app process.
+- Export checks the destination path and available working space before rendering; long MP4 jobs do not publish a result that is larger than the source.
+- MP4 presets are quality-first HEVC settings:
+  - `Balanced`: Main 10 hardware `8000k` or software `CRF 18`
+  - `SmallerFile`: Main 10 hardware `5500k` or software `CRF 22`
+  - `HigherQuality`: Main 10 hardware `10000k` or software `CRF 16`
 - The real sample clip in `Real Test Video/IMG_0278.MOV` is covered by a smoke test so analysis and export are checked against an actual talking-head source, not only synthetic fixtures.
+
+The opt-in acceptance test for the external 8 GB video requires both `CUTTHEPAUSE_RUN_LONG_VIDEO=1` and `CUTTHEPAUSE_MACHINE_IDLE=1`; this prevents a multi-hour decode/encode from starting while other machine work is active.
 
 ## Repository Layout
 

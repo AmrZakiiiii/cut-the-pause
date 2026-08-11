@@ -94,22 +94,22 @@
 
               <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="14">
                 <TextBlock Grid.Row="0" Foreground="{StaticResource BrandMutedBrush}" Text="Minimum silence (ms)" VerticalAlignment="Center" />
-                <TextBox Grid.Row="0" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding MinSilenceMsText}" />
+                <TextBox Grid.Row="0" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding MinSilenceMsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Grid.Row="1" Foreground="{StaticResource BrandMutedBrush}" Text="Minimum speech (ms)" VerticalAlignment="Center" />
-                <TextBox Grid.Row="1" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding MinSpeechMsText}" />
+                <TextBox Grid.Row="1" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding MinSpeechMsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Grid.Row="2" Foreground="{StaticResource BrandMutedBrush}" Text="Padding before speech (ms)" VerticalAlignment="Center" />
-                <TextBox Grid.Row="2" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding PaddingBeforeMsText}" />
+                <TextBox Grid.Row="2" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding PaddingBeforeMsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Grid.Row="3" Foreground="{StaticResource BrandMutedBrush}" Text="Padding after speech (ms)" VerticalAlignment="Center" />
-                <TextBox Grid.Row="3" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding PaddingAfterMsText}" />
+                <TextBox Grid.Row="3" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding PaddingAfterMsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Grid.Row="4" Foreground="{StaticResource BrandMutedBrush}" Text="Speech threshold" VerticalAlignment="Center" />
-                <TextBox Grid.Row="4" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding SpeechThresholdText}" />
+                <TextBox Grid.Row="4" Grid.Column="1" Width="104" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Text="{Binding SpeechThresholdText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Grid.Row="5" Foreground="{StaticResource BrandMutedBrush}" Text="Export preset" VerticalAlignment="Center" />
-                <ComboBox Grid.Row="5" Grid.Column="1" Width="132" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" ItemsSource="{Binding PresetOptions}" SelectedItem="{Binding SelectedPreset}" />
+                <ComboBox Grid.Row="5" Grid.Column="1" Width="132" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" ItemsSource="{Binding PresetOptions}" SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
               </Grid>
 
               <StackPanel Orientation="Horizontal" Spacing="10">
@@ -157,7 +157,7 @@
                     IsEnabled="{Binding CanExport}"
                     Padding="16,10" />
               </StackPanel>
-              <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Choose `.mp4` for fast delivery or `.mov` for a high-quality ProRes master that is friendlier for editing workflows." TextWrapping="Wrap" />
+              <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Choose `.mp4` for compact, high-quality 10-bit HEVC delivery or `.mov` for a much larger ProRes editing master." TextWrapping="Wrap" />
             </StackPanel>
           </Border>
         </StackPanel>
@@ -246,6 +246,15 @@
           <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Cut The Pause is scanning the video audio. This window is still working." TextWrapping="Wrap" />
           <ProgressBar IsIndeterminate="True" Height="12" Foreground="{StaticResource BrandCyanBrush}" Background="#1A2634" />
           <TextBlock Foreground="{StaticResource BrandTextBrush}" FontWeight="SemiBold" Text="{Binding AnalysisStageText}" HorizontalAlignment="Center" />
+          <Button
+              Background="{StaticResource BrandPanelAltBrush}"
+              BorderBrush="{StaticResource BrandBorderBrush}"
+              Click="OnCancelOperationClick"
+              Content="Cancel Analysis"
+              Foreground="{StaticResource BrandTextBrush}"
+              IsEnabled="{Binding CanCancelOperation}"
+              HorizontalAlignment="Right"
+              Padding="16,10" />
         </StackPanel>
       </Border>
     </Border>
@@ -302,6 +311,17 @@
                   FontWeight="Bold"
                   Padding="16,10" />
             </StackPanel>
+
+            <Button
+                Background="{StaticResource BrandPanelAltBrush}"
+                BorderBrush="{StaticResource BrandBorderBrush}"
+                Click="OnCancelOperationClick"
+                Content="Cancel Export"
+                Foreground="{StaticResource BrandTextBrush}"
+                IsEnabled="{Binding CanCancelOperation}"
+                IsVisible="{Binding IsExporting}"
+                HorizontalAlignment="Right"
+                Padding="16,10" />
           </StackPanel>
         </Border>
       </Grid>

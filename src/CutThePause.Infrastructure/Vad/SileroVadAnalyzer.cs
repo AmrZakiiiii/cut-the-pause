@@ -26,86 +26,112 @@ public sealed class SileroVadAnalyzer : IVadAnalyzer
         AnalysisSettings settings,
         CancellationToken cancellationToken)
     {
-        if (!File.Exists(_modelPath))
+        return DetectSpeechAsync(
+            new ArrayPcmFrameReader(audio.Samples),
+            audio.SampleRate,
+            settings,
+            cancellationToken);
+    }
+
+    public Task<VadAnalysisResult> DetectSpeechAsync(
+        PcmAudioFile audio,
+        AnalysisSettings settings,
+        CancellationToken cancellationToken)
+    {
+        return DetectSpeechAsync(
+            new FilePcmFrameReader(audio),
+            audio.SampleRate,
+            settings,
+            cancellationToken);
+    }
+
+    private Task<VadAnalysisResult> DetectSpeechAsync(
+        IPcmFrameReader frameReader,
+        int sampleRate,
+        AnalysisSettings settings,
+        CancellationToken cancellationToken)
+    {
+        using (frameReader)
         {
-            throw new FileNotFoundException("Silero VAD model was not found.", _modelPath);
-        }
+            if (!File.Exists(_modelPath))
+            {
+                throw new FileNotFoundException("Silero VAD model was not found.", _modelPath);
+            }
 
-        EnsureNativeRuntimeLoaded();
+            EnsureNativeRuntimeLoaded();
 
-        const int frameSize = 512;
-        const int contextSize = 64;
-        using var session = new InferenceSession(_modelPath);
+            const int frameSize = 512;
+            const int contextSize = 64;
+            using var session = new InferenceSession(_modelPath);
 
-        var samples = audio.Samples;
-        var probabilities = new List<float>();
-        var state = CreateInitialState();
-        var context = new float[contextSize];
-
-        for (var offset = 0; offset < samples.Length; offset += frameSize)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
+            var probabilities = new List<float>();
+            var state = CreateInitialState();
+            var context = new float[contextSize];
             var frameSamples = new float[frameSize];
-            for (var index = 0; index < frameSize; index++)
+
+            while (true)
             {
-                var sampleIndex = offset + index;
-                frameSamples[index] = sampleIndex < samples.Length ? samples[sampleIndex] : 0f;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (frameReader.ReadFrame(frameSamples, cancellationToken) == 0)
+                {
+                    break;
+                }
+
+                var frame = new DenseTensor<float>(new[] { 1, frameSize + contextSize });
+                for (var index = 0; index < contextSize; index++)
+                {
+                    frame[0, index] = context[index];
+                }
+
+                for (var index = 0; index < frameSize; index++)
+                {
+                    frame[0, contextSize + index] = frameSamples[index];
+                }
+
+                var sampleRateTensor = new DenseTensor<long>(new[] { 1 });
+                sampleRateTensor[0] = sampleRate;
+
+                using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = session.Run(new[]
+                {
+                    NamedOnnxValue.CreateFromTensor("input", frame),
+                    NamedOnnxValue.CreateFromTensor("state", state),
+                    NamedOnnxValue.CreateFromTensor("sr", sampleRateTensor)
+                });
+
+                var outputs = results.ToArray();
+                var probability = outputs[0].AsEnumerable<float>().FirstOrDefault();
+                probabilities.Add(probability);
+                state = CopyState(outputs[1].AsTensor<float>());
+                Array.Copy(frameSamples, frameSamples.Length - contextSize, context, 0, contextSize);
             }
 
-            var frame = new DenseTensor<float>(new[] { 1, frameSize + contextSize });
-            for (var index = 0; index < contextSize; index++)
+            var segments = new List<SpeechSegment>();
+            int? startFrame = null;
+
+            for (var frameIndex = 0; frameIndex < probabilities.Count; frameIndex++)
             {
-                frame[0, index] = context[index];
+                var isSpeech = probabilities[frameIndex] >= settings.SpeechThreshold;
+                if (isSpeech && startFrame is null)
+                {
+                    startFrame = frameIndex;
+                    continue;
+                }
+
+                if (!isSpeech && startFrame is not null)
+                {
+                    AppendSegment(sampleRate, settings.MinSpeech, segments, startFrame.Value, frameIndex, frameSize);
+                    startFrame = null;
+                }
             }
 
-            for (var index = 0; index < frameSize; index++)
+            if (startFrame is not null)
             {
-                frame[0, contextSize + index] = frameSamples[index];
+                AppendSegment(sampleRate, settings.MinSpeech, segments, startFrame.Value, probabilities.Count, frameSize);
             }
 
-            var sampleRate = new DenseTensor<long>(new[] { 1 });
-            sampleRate[0] = audio.SampleRate;
-
-            using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = session.Run(new[]
-            {
-                NamedOnnxValue.CreateFromTensor("input", frame),
-                NamedOnnxValue.CreateFromTensor("state", state),
-                NamedOnnxValue.CreateFromTensor("sr", sampleRate)
-            });
-
-            var outputs = results.ToArray();
-            var probability = outputs[0].AsEnumerable<float>().FirstOrDefault();
-            probabilities.Add(probability);
-            state = CopyState(outputs[1].AsTensor<float>());
-            Array.Copy(frameSamples, frameSamples.Length - contextSize, context, 0, contextSize);
+            return Task.FromResult(new VadAnalysisResult(segments, Array.Empty<string>()));
         }
-
-        var segments = new List<SpeechSegment>();
-        int? startFrame = null;
-
-        for (var frameIndex = 0; frameIndex < probabilities.Count; frameIndex++)
-        {
-            var isSpeech = probabilities[frameIndex] >= settings.SpeechThreshold;
-            if (isSpeech && startFrame is null)
-            {
-                startFrame = frameIndex;
-                continue;
-            }
-
-            if (!isSpeech && startFrame is not null)
-            {
-                AppendSegment(audio.SampleRate, settings.MinSpeech, segments, startFrame.Value, frameIndex, frameSize);
-                startFrame = null;
-            }
-        }
-
-        if (startFrame is not null)
-        {
-            AppendSegment(audio.SampleRate, settings.MinSpeech, segments, startFrame.Value, probabilities.Count, frameSize);
-        }
-
-        return Task.FromResult(new VadAnalysisResult(segments, Array.Empty<string>()));
     }
 
     private static DenseTensor<float> CreateInitialState()

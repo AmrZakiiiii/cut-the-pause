@@ -33,12 +33,28 @@ public sealed class VideoWorkflowService
         var metadata = await _metadataReader.ReadAsync(inputPath, cancellationToken).ConfigureAwait(false);
 
         progress?.Report(new AnalysisProgress("Extracting audio..."));
-        var audio = await _audioExtractor.ExtractAsync(inputPath, cancellationToken).ConfigureAwait(false);
+        VadAnalysisResult vadResult;
+        if (_audioExtractor is IChunkedAudioExtractor chunkedAudioExtractor &&
+            _vadAnalyzer is IStreamingVadAnalyzer streamingVadAnalyzer)
+        {
+            await using var audioFile = await chunkedAudioExtractor
+                .ExtractToFileAsync(inputPath, cancellationToken)
+                .ConfigureAwait(false);
 
-        progress?.Report(new AnalysisProgress("Detecting speech..."));
-        var vadResult = await Task.Run(
-            () => _vadAnalyzer.DetectSpeechAsync(audio, settings, cancellationToken),
-            cancellationToken).ConfigureAwait(false);
+            progress?.Report(new AnalysisProgress("Detecting speech from streamed audio..."));
+            vadResult = await Task.Run(
+                () => streamingVadAnalyzer.DetectSpeechAsync(audioFile, settings, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var audio = await _audioExtractor.ExtractAsync(inputPath, cancellationToken).ConfigureAwait(false);
+
+            progress?.Report(new AnalysisProgress("Detecting speech..."));
+            vadResult = await Task.Run(
+                () => _vadAnalyzer.DetectSpeechAsync(audio, settings, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+        }
 
         var warnings = vadResult.Warnings.ToList();
         if (vadResult.SpeechSegments.Count == 0)

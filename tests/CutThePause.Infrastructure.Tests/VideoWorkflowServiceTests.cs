@@ -63,6 +63,30 @@ public sealed class VideoWorkflowServiceTests
         thread.Join(TimeSpan.FromSeconds(2));
     }
 
+    [Fact]
+    public async Task AnalyzeAsync_UsesFileBackedAudioWhenProductionComponentsSupportIt()
+    {
+        var audioPath = Path.Combine(Path.GetTempPath(), $"cut-the-pause-workflow-{Guid.NewGuid():N}.f32le");
+        await File.WriteAllBytesAsync(audioPath, Array.Empty<byte>());
+        var progressStages = new List<string>();
+        var streamingVad = new StreamingVadAnalyzer();
+        var workflow = new VideoWorkflowService(
+            new FixedMetadataReader(),
+            new StreamingAudioExtractor(audioPath),
+            streamingVad,
+            new NoopVideoExporter());
+
+        await workflow.AnalyzeAsync(
+            "input.mov",
+            new AnalysisSettings(),
+            CancellationToken.None,
+            new RecordingProgress<AnalysisProgress>(progress => progressStages.Add(progress.Stage)));
+
+        Assert.True(streamingVad.WasCalled);
+        Assert.Contains("Detecting speech from streamed audio...", progressStages);
+        Assert.False(File.Exists(audioPath));
+    }
+
     private static VideoWorkflowService CreateWorkflow(IVadAnalyzer vadAnalyzer) => new(
         new FixedMetadataReader(),
         new FixedAudioExtractor(),
@@ -91,6 +115,22 @@ public sealed class VideoWorkflowServiceTests
     {
         public Task<PcmAudioData> ExtractAsync(string inputPath, CancellationToken cancellationToken) =>
             Task.FromResult(new PcmAudioData(Array.Empty<float>(), 16_000));
+    }
+
+    private sealed class StreamingAudioExtractor : IAudioExtractor, IChunkedAudioExtractor
+    {
+        private readonly string _audioPath;
+
+        public StreamingAudioExtractor(string audioPath)
+        {
+            _audioPath = audioPath;
+        }
+
+        public Task<PcmAudioData> ExtractAsync(string inputPath, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<PcmAudioFile> ExtractToFileAsync(string inputPath, CancellationToken cancellationToken) =>
+            Task.FromResult(new PcmAudioFile(_audioPath, 16_000, 0));
     }
 
     private sealed class ImmediateVadAnalyzer : IVadAnalyzer
@@ -122,6 +162,28 @@ public sealed class VideoWorkflowServiceTests
         {
             _started.Set();
             _release.Wait(cancellationToken);
+            return Task.FromResult(new VadAnalysisResult(
+                new[] { new SpeechSegment(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)) },
+                Array.Empty<string>()));
+        }
+    }
+
+    private sealed class StreamingVadAnalyzer : IVadAnalyzer, IStreamingVadAnalyzer
+    {
+        public bool WasCalled { get; private set; }
+
+        public Task<VadAnalysisResult> DetectSpeechAsync(
+            PcmAudioData audio,
+            AnalysisSettings settings,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<VadAnalysisResult> DetectSpeechAsync(
+            PcmAudioFile audio,
+            AnalysisSettings settings,
+            CancellationToken cancellationToken)
+        {
+            WasCalled = true;
             return Task.FromResult(new VadAnalysisResult(
                 new[] { new SpeechSegment(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)) },
                 Array.Empty<string>()));

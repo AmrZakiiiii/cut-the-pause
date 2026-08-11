@@ -4,5 +4,5 @@ public interface IAnalysisSettingsStore
 {
     AnalysisSettingsPreferences Load();
 
-    void Save(AnalysisSettingsPreferences preferences);
+    bool Save(AnalysisSettingsPreferences preferences);
 }
