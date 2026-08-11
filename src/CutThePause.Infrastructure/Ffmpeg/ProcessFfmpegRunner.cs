@@ -35,9 +35,18 @@ public sealed class ProcessFfmpegRunner : IFfmpegRunner
         process.Start();
 
         var copyTask = process.StandardOutput.BaseStream.CopyToAsync(output, cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        await Task.WhenAll(copyTask, process.WaitForExitAsync(cancellationToken)).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(copyTask, stderrTask, process.WaitForExitAsync(cancellationToken)).ConfigureAwait(false);
+        }
+        catch
+        {
+            await StopProcessAsync(process).ConfigureAwait(false);
+            throw;
+        }
+
         var stderr = await stderrTask.ConfigureAwait(false);
 
         return new BinaryProcessResult(process.ExitCode, output.ToArray(), stderr);
@@ -70,10 +79,47 @@ public sealed class ProcessFfmpegRunner : IFfmpegRunner
         }, cancellationToken);
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        await Task.WhenAll(stdoutTask, process.WaitForExitAsync(cancellationToken)).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(stdoutTask, stderrTask, process.WaitForExitAsync(cancellationToken)).ConfigureAwait(false);
+        }
+        catch
+        {
+            await StopProcessAsync(process).ConfigureAwait(false);
+            throw;
+        }
+
         var stderr = await stderrTask.ConfigureAwait(false);
 
         return new ProcessResult(process.ExitCode, standardOutput.ToString(), stderr);
+    }
+
+    private static async Task StopProcessAsync(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        try
+        {
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (TimeoutException)
+        {
+        }
     }
 
     private static Process CreateProcess(string executablePath, IReadOnlyList<string> arguments)

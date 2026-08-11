@@ -20,34 +20,52 @@ public sealed class FfmpegVideoExporter : IVideoExporter
         IProgress<VideoExportProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var binaries = await _locator.LocateAsync(cancellationToken).ConfigureAwait(false);
-        var commandPlan = FfmpegExportCommandBuilder.Build(request, preferHardwareAcceleration: OperatingSystem.IsMacOS());
-        ReportProgress(progress, request, 0d, TimeSpan.Zero, $"Preparing {commandPlan.EncoderLabel} export...", commandPlan.EncoderLabel);
-        var result = await RunExportAsync(binaries.FfmpegPath, request, commandPlan, progress, cancellationToken).ConfigureAwait(false);
+        var temporaryOutputPath = CreateTemporaryOutputPath(request.OutputPath);
 
-        if (result.ExitCode == 0)
+        try
         {
-            ReportProgress(progress, request, 1d, request.OutputDuration, "Finalizing export...", commandPlan.EncoderLabel);
-            return;
-        }
-
-        if (commandPlan.UsesHardwareAcceleration)
-        {
-            var fallbackPlan = FfmpegExportCommandBuilder.Build(request);
-            ReportProgress(progress, request, 0d, TimeSpan.Zero, "Retrying with software H.264...", fallbackPlan.EncoderLabel);
-            var fallbackResult = await RunExportAsync(binaries.FfmpegPath, request, fallbackPlan, progress, cancellationToken).ConfigureAwait(false);
-
-            if (fallbackResult.ExitCode == 0)
+            var outputDirectory = Path.GetDirectoryName(request.OutputPath);
+            if (!string.IsNullOrWhiteSpace(outputDirectory))
             {
-                ReportProgress(progress, request, 1d, request.OutputDuration, "Finalizing export...", fallbackPlan.EncoderLabel);
+                Directory.CreateDirectory(outputDirectory);
+            }
+
+            var renderRequest = request with { OutputPath = temporaryOutputPath };
+            var binaries = await _locator.LocateAsync(cancellationToken).ConfigureAwait(false);
+            var commandPlan = FfmpegExportCommandBuilder.Build(renderRequest, preferHardwareAcceleration: OperatingSystem.IsMacOS());
+            ReportProgress(progress, request, 0d, TimeSpan.Zero, $"Preparing {commandPlan.EncoderLabel} export...", commandPlan.EncoderLabel);
+            var result = await RunExportAsync(binaries.FfmpegPath, request, commandPlan, progress, cancellationToken).ConfigureAwait(false);
+
+            if (result.ExitCode == 0)
+            {
+                CommitTemporaryOutput(temporaryOutputPath, request.OutputPath);
+                ReportProgress(progress, request, 1d, request.OutputDuration, "Finalizing export...", commandPlan.EncoderLabel);
                 return;
             }
 
-            throw new InvalidOperationException(
-                $"FFmpeg export failed with hardware acceleration and software fallback. Hardware: {result.StandardError} Software: {fallbackResult.StandardError}");
-        }
+            if (commandPlan.UsesHardwareAcceleration)
+            {
+                var fallbackPlan = FfmpegExportCommandBuilder.Build(renderRequest);
+                ReportProgress(progress, request, 0d, TimeSpan.Zero, "Retrying with software H.264...", fallbackPlan.EncoderLabel);
+                var fallbackResult = await RunExportAsync(binaries.FfmpegPath, request, fallbackPlan, progress, cancellationToken).ConfigureAwait(false);
 
-        throw new InvalidOperationException($"FFmpeg export failed: {result.StandardError}");
+                if (fallbackResult.ExitCode == 0)
+                {
+                    CommitTemporaryOutput(temporaryOutputPath, request.OutputPath);
+                    ReportProgress(progress, request, 1d, request.OutputDuration, "Finalizing export...", fallbackPlan.EncoderLabel);
+                    return;
+                }
+
+                throw new InvalidOperationException(
+                    $"FFmpeg export failed with hardware acceleration and software fallback. Hardware: {result.StandardError} Software: {fallbackResult.StandardError}");
+            }
+
+            throw new InvalidOperationException($"FFmpeg export failed: {result.StandardError}");
+        }
+        finally
+        {
+            TryDeleteTemporaryOutput(temporaryOutputPath);
+        }
     }
 
     private async Task<ProcessResult> RunExportAsync(
@@ -139,5 +157,33 @@ public sealed class FfmpegVideoExporter : IVideoExporter
             request.OutputDuration,
             stage,
             encoderLabel));
+    }
+
+    private static string CreateTemporaryOutputPath(string outputPath)
+    {
+        var directory = Path.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory;
+        var fileName = Path.GetFileNameWithoutExtension(outputPath);
+        var extension = Path.GetExtension(outputPath);
+        return Path.Combine(directory, $".{fileName}.{Guid.NewGuid():N}.cut-the-pause{extension}");
+    }
+
+    private static void CommitTemporaryOutput(string temporaryOutputPath, string outputPath) =>
+        File.Move(temporaryOutputPath, outputPath, overwrite: true);
+
+    private static void TryDeleteTemporaryOutput(string temporaryOutputPath)
+    {
+        try
+        {
+            if (File.Exists(temporaryOutputPath))
+            {
+                File.Delete(temporaryOutputPath);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 }
