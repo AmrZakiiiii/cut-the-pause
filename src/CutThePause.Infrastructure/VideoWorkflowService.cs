@@ -26,11 +26,19 @@ public sealed class VideoWorkflowService
     public async Task<AnalysisResult> AnalyzeAsync(
         string inputPath,
         AnalysisSettings settings,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<AnalysisProgress>? progress = null)
     {
+        progress?.Report(new AnalysisProgress("Reading video metadata..."));
         var metadata = await _metadataReader.ReadAsync(inputPath, cancellationToken).ConfigureAwait(false);
+
+        progress?.Report(new AnalysisProgress("Extracting audio..."));
         var audio = await _audioExtractor.ExtractAsync(inputPath, cancellationToken).ConfigureAwait(false);
-        var vadResult = await _vadAnalyzer.DetectSpeechAsync(audio, settings, cancellationToken).ConfigureAwait(false);
+
+        progress?.Report(new AnalysisProgress("Detecting speech..."));
+        var vadResult = await Task.Run(
+            () => _vadAnalyzer.DetectSpeechAsync(audio, settings, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
 
         var warnings = vadResult.Warnings.ToList();
         if (vadResult.SpeechSegments.Count == 0)
@@ -38,6 +46,7 @@ public sealed class VideoWorkflowService
             warnings.Add("No speech segments were detected, so the current analysis keeps the full video to avoid destructive edits.");
         }
 
+        progress?.Report(new AnalysisProgress("Building review..."));
         return CutPlanBuilder.Build(inputPath, metadata.Duration, vadResult.SpeechSegments, settings, warnings);
     }
 
