@@ -55,6 +55,18 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void RevealSourceRequiresSelectedInput()
+    {
+        var viewModel = CreateViewModel(new InMemoryAnalysisSettingsStore(AnalysisSettingsPreferences.Defaults));
+
+        Assert.False(viewModel.CanRevealSource);
+
+        viewModel.SetInputPath("/tmp/source.mov");
+
+        Assert.True(viewModel.CanRevealSource);
+    }
+
+    [Fact]
     public async Task AnalyzeAsync_ShowsAnalysisStateUntilWorkflowCompletes()
     {
         var vad = new DelayedVadAnalyzer();

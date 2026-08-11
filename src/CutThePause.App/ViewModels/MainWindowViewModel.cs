@@ -74,6 +74,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public bool CanChangeSource => !_isBusy;
 
+    public bool CanRevealSource => !_isBusy && HasInput;
+
     public bool CanChooseOutput => !_isBusy;
 
     public bool CanResetReview => !_isBusy;
@@ -591,6 +593,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanAnalyze));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanChangeSource));
+        OnPropertyChanged(nameof(CanRevealSource));
         OnPropertyChanged(nameof(CanChooseOutput));
         OnPropertyChanged(nameof(CanResetReview));
         OnPropertyChanged(nameof(InputPathDisplay));

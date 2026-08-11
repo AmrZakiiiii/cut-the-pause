@@ -82,7 +82,7 @@
                     Click="OnOpenSourceClick"
                     Content="Reveal Source"
                     Foreground="{StaticResource BrandTextBrush}"
-                    IsEnabled="{Binding CanChangeSource}"
+                    IsEnabled="{Binding CanRevealSource}"
                     Padding="18,12" />
               </StackPanel>
             </StackPanel>
