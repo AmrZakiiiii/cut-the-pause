@@ -18,6 +18,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _statusMessage = "Choose a source video to start.";
     private string _warningsText = string.Empty;
     private bool _isBusy;
+    private bool _isAnalyzing;
+    private string _analysisStageText = "Preparing analysis...";
     private string _minSilenceMsText = "350";
     private string _minSpeechMsText = "150";
     private string _paddingBeforeMsText = "80";
@@ -69,6 +71,32 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool CanAnalyze => !_isBusy && HasInput;
 
     public bool CanExport => !_isBusy && _analysisResult is not null && !string.IsNullOrWhiteSpace(_outputPath);
+
+    public bool CanChangeSource => !_isBusy;
+
+    public bool CanChooseOutput => !_isBusy;
+
+    public bool CanResetReview => !_isBusy;
+
+    public bool IsAnalyzing
+    {
+        get => _isAnalyzing;
+        private set
+        {
+            if (SetProperty(ref _isAnalyzing, value))
+            {
+                OnPropertyChanged(nameof(ShowAnalysisOverlay));
+            }
+        }
+    }
+
+    public bool ShowAnalysisOverlay => IsAnalyzing;
+
+    public string AnalysisStageText
+    {
+        get => _analysisStageText;
+        private set => SetProperty(ref _analysisStageText, value);
+    }
 
     public bool IsExporting
     {
@@ -249,6 +277,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public void SetInputPath(string path)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         PersistSettingsIfValid();
         _inputPath = path;
         _outputPath = SuggestOutputPath(path);
@@ -264,6 +297,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public void SetOutputPath(string path)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         _outputPath = path;
         OnPropertyChanged(nameof(OutputPathDisplay));
         RaiseStateProperties();
@@ -271,6 +309,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public async Task AnalyzeAsync()
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(_inputPath))
         {
             StatusMessage = "Choose a source video before analyzing.";
@@ -280,9 +323,11 @@ public sealed class MainWindowViewModel : ViewModelBase
         try
         {
             SetBusy(true, "Analyzing audio and detecting silence...");
+            BeginAnalysisPresentation();
             PersistSettingsIfValid();
             var settings = BuildSettings();
-            _analysisResult = await _workflowService.AnalyzeAsync(_inputPath, settings, CancellationToken.None);
+            var progress = new Progress<AnalysisProgress>(OnAnalysisProgressReported);
+            _analysisResult = await _workflowService.AnalyzeAsync(_inputPath, settings, CancellationToken.None, progress);
 
             PopulateCuts(_analysisResult.CutCandidates);
             WarningsText = string.Join(Environment.NewLine, _analysisResult.Warnings);
@@ -297,6 +342,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            EndAnalysisPresentation();
             SetBusy(false, StatusMessage);
         }
     }
@@ -383,6 +429,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public void ResetReview()
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         _analysisResult = null;
 
         foreach (var item in CutCandidates)
@@ -539,8 +590,25 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasInput));
         OnPropertyChanged(nameof(CanAnalyze));
         OnPropertyChanged(nameof(CanExport));
+        OnPropertyChanged(nameof(CanChangeSource));
+        OnPropertyChanged(nameof(CanChooseOutput));
+        OnPropertyChanged(nameof(CanResetReview));
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
+    }
+
+    private void BeginAnalysisPresentation()
+    {
+        AnalysisStageText = "Preparing analysis...";
+        IsAnalyzing = true;
+    }
+
+    private void EndAnalysisPresentation() => IsAnalyzing = false;
+
+    private void OnAnalysisProgressReported(AnalysisProgress progress)
+    {
+        AnalysisStageText = progress.Stage;
+        StatusMessage = progress.Stage;
     }
 
     private static string SuggestOutputPath(string inputPath)

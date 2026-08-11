@@ -25,6 +25,12 @@ internal sealed class FixedMetadataReader : IVideoMetadataReader
         Task.FromResult(new VideoMetadata(TimeSpan.FromSeconds(10)));
 }
 
+internal sealed class ThrowingMetadataReader : IVideoMetadataReader
+{
+    public Task<VideoMetadata> ReadAsync(string inputPath, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("metadata failure");
+}
+
 internal sealed class FixedAudioExtractor : IAudioExtractor
 {
     public Task<PcmAudioData> ExtractAsync(string inputPath, CancellationToken cancellationToken) =>
@@ -38,6 +44,22 @@ internal sealed class FixedVadAnalyzer : IVadAnalyzer
         AnalysisSettings settings,
         CancellationToken cancellationToken) =>
         Task.FromResult(new VadAnalysisResult(Array.Empty<SpeechSegment>(), Array.Empty<string>()));
+}
+
+internal sealed class DelayedVadAnalyzer : IVadAnalyzer
+{
+    public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public TaskCompletionSource<VadAnalysisResult> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task<VadAnalysisResult> DetectSpeechAsync(
+        PcmAudioData audio,
+        AnalysisSettings settings,
+        CancellationToken cancellationToken)
+    {
+        Started.TrySetResult(true);
+        return Completion.Task;
+    }
 }
 
 internal sealed class NoopVideoExporter : IVideoExporter

@@ -74,6 +74,7 @@
                     Content="Import Video"
                     Foreground="#081019"
                     FontWeight="Bold"
+                    IsEnabled="{Binding CanChangeSource}"
                     Padding="18,12" />
                 <Button
                     Background="{StaticResource BrandPanelAltBrush}"
@@ -81,7 +82,7 @@
                     Click="OnOpenSourceClick"
                     Content="Reveal Source"
                     Foreground="{StaticResource BrandTextBrush}"
-                    IsEnabled="{Binding HasInput}"
+                    IsEnabled="{Binding CanChangeSource}"
                     Padding="18,12" />
               </StackPanel>
             </StackPanel>
@@ -127,6 +128,7 @@
                     Click="OnResetClick"
                     Content="Reset Review"
                     Foreground="{StaticResource BrandTextBrush}"
+                    IsEnabled="{Binding CanResetReview}"
                     Padding="18,12" />
               </StackPanel>
             </StackPanel>
@@ -143,6 +145,7 @@
                     Click="OnChooseOutputClick"
                     Content="Choose Output"
                     Foreground="{StaticResource BrandTextBrush}"
+                    IsEnabled="{Binding CanChooseOutput}"
                     Padding="18,12" />
                 <Button
                     Background="{StaticResource BrandWarmBrush}"
@@ -234,6 +237,17 @@
 
     <Border Grid.Row="1" Grid.ColumnSpan="2" Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="18" Padding="16">
       <TextBlock Foreground="{StaticResource BrandTextBrush}" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+    </Border>
+
+    <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Background="#B20B111A" CornerRadius="28" IsVisible="{Binding ShowAnalysisOverlay}">
+      <Border Width="420" Background="#101923" BorderBrush="#2A394B" BorderThickness="1" CornerRadius="28" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="16">
+          <TextBlock FontSize="28" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="Analysis In Progress" />
+          <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Cut The Pause is scanning the video audio. This window is still working." TextWrapping="Wrap" />
+          <ProgressBar IsIndeterminate="True" Height="12" Foreground="{StaticResource BrandCyanBrush}" Background="#1A2634" />
+          <TextBlock Foreground="{StaticResource BrandTextBrush}" FontWeight="SemiBold" Text="{Binding AnalysisStageText}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
     </Border>
 
     <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Background="#B20B111A" CornerRadius="28" IsVisible="{Binding ShowExportOverlay}">
