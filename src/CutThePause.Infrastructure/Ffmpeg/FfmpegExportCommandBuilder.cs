@@ -76,6 +76,8 @@ public static class FfmpegExportCommandBuilder
         });
 
         arguments.AddRange(codecArguments);
+        arguments.Add("-t");
+        arguments.Add(FormatSeconds(request.OutputDuration));
         arguments.Add(request.OutputPath);
 
         return new ExportCommandPlan(filterGraph, arguments, usesHardwareAcceleration, encoderLabel);

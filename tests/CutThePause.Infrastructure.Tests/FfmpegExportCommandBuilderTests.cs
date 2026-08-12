@@ -39,6 +39,29 @@ public sealed class FfmpegExportCommandBuilderTests
     }
 
     [Fact]
+    public void Build_CapsEachBatchAtRequestedOutputDuration()
+    {
+        var request = new ExportRequest(
+            "input.mp4",
+            "output.mp4",
+            TimeSpan.FromSeconds(30),
+            ExportPreset.Balanced,
+            Array.Empty<CutCandidate>(),
+            new[]
+            {
+                new KeepSegment(0, TimeSpan.Zero, TimeSpan.FromSeconds(0.87)),
+                new KeepSegment(1, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11.23)),
+                new KeepSegment(2, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20.54))
+            });
+
+        var commandPlan = FfmpegExportCommandBuilder.Build(request);
+        var outputDurationIndex = Array.LastIndexOf(commandPlan.Arguments.ToArray(), "-t");
+
+        Assert.True(outputDurationIndex >= 0);
+        Assert.Equal("2.64", commandPlan.Arguments[outputDurationIndex + 1]);
+    }
+
+    [Fact]
     public void Build_RejectsMoreThanMaximumSegmentsPerCommand()
     {
         var keepSegments = Enumerable.Range(0, FfmpegExportCommandBuilder.MaxSegmentsPerCommand + 1)
