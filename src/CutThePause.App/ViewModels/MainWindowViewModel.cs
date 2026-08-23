@@ -12,6 +12,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 {
     private readonly VideoWorkflowService _workflowService;
     private readonly IAnalysisSettingsStore _settingsStore;
+    private readonly IHistoryStore _historyStore;
+    private readonly ICustomPresetStore _customPresetStore;
+    private readonly IExportCheckpointStore _exportCheckpointStore;
     private AnalysisResult? _analysisResult;
     private string? _inputPath;
     private string? _outputPath;
@@ -25,6 +28,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _paddingBeforeMsText = "80";
     private string _paddingAfterMsText = "120";
     private string _speechThresholdText = "0.50";
+    private string _customPresetNameText = string.Empty;
     private ExportPreset _selectedPreset = ExportPreset.Balanced;
     private string _originalDurationText = "--";
     private string _removedDurationText = "--";
@@ -39,11 +43,25 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _exportOverlaySubtitle = "Cut The Pause is rendering your trimmed timeline now.";
     private string _exportedOutputPath = string.Empty;
     private CancellationTokenSource? _operationCancellationSource;
+    private HistoryEntryItemViewModel? _selectedHistoryEntry;
+    private CustomPresetItemViewModel? _selectedCustomPreset;
+    private ExportCheckpointItemViewModel? _selectedPausedExport;
+    private ExportCheckpoint? _activeCheckpoint;
+    private bool _pauseRequested;
+    private bool _discardRequested;
 
-    public MainWindowViewModel(VideoWorkflowService workflowService, IAnalysisSettingsStore? settingsStore = null)
+    public MainWindowViewModel(
+        VideoWorkflowService workflowService,
+        IAnalysisSettingsStore? settingsStore = null,
+        IHistoryStore? historyStore = null,
+        ICustomPresetStore? customPresetStore = null,
+        IExportCheckpointStore? exportCheckpointStore = null)
     {
         _workflowService = workflowService;
         _settingsStore = settingsStore ?? new JsonAnalysisSettingsStore();
+        _historyStore = historyStore ?? new NullHistoryStore();
+        _customPresetStore = customPresetStore ?? new NullCustomPresetStore();
+        _exportCheckpointStore = exportCheckpointStore ?? new NullExportCheckpointStore();
         var preferences = _settingsStore.Load();
         _minSilenceMsText = preferences.MinSilenceMs.ToString(CultureInfo.InvariantCulture);
         _minSpeechMsText = preferences.MinSpeechMs.ToString(CultureInfo.InvariantCulture);
@@ -53,11 +71,20 @@ public sealed class MainWindowViewModel : ViewModelBase
         _selectedPreset = preferences.ExportPreset;
         CutCandidates = new ObservableCollection<CutCandidateItemViewModel>();
         PresetOptions = Enum.GetValues<ExportPreset>();
+        HistoryEntries = new ObservableCollection<HistoryEntryItemViewModel>(_historyStore.Load().Select(static entry => new HistoryEntryItemViewModel(entry)));
+        CustomPresets = new ObservableCollection<CustomPresetItemViewModel>(_customPresetStore.Load().Select(static preset => new CustomPresetItemViewModel(preset)));
+        PausedExports = new ObservableCollection<ExportCheckpointItemViewModel>(_exportCheckpointStore.Load().Select(static checkpoint => new ExportCheckpointItemViewModel(checkpoint)));
     }
 
     public ObservableCollection<CutCandidateItemViewModel> CutCandidates { get; }
 
     public IReadOnlyList<ExportPreset> PresetOptions { get; }
+
+    public ObservableCollection<HistoryEntryItemViewModel> HistoryEntries { get; }
+
+    public ObservableCollection<CustomPresetItemViewModel> CustomPresets { get; }
+
+    public ObservableCollection<ExportCheckpointItemViewModel> PausedExports { get; }
 
     public string InputPathDisplay => string.IsNullOrWhiteSpace(_inputPath) ? "No video selected yet." : _inputPath;
 
@@ -82,6 +109,18 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool CanResetReview => !_isBusy;
 
     public bool CanCancelOperation => _isBusy && _operationCancellationSource is not null;
+
+    public bool CanPauseOperation => IsExporting && CanCancelOperation;
+
+    public bool CanResumeSelectedExport => !_isBusy && SelectedPausedExport is not null;
+
+    public bool CanLoadSelectedHistory => !_isBusy && SelectedHistoryEntry?.CanLoad == true;
+
+    public bool CanSaveCustomPreset => !_isBusy && !string.IsNullOrWhiteSpace(CustomPresetNameText) && TryBuildPersistedPreferences(out _);
+
+    public bool CanApplySelectedCustomPreset => !_isBusy && SelectedCustomPreset is not null;
+
+    public bool CanDeleteSelectedCustomPreset => !_isBusy && SelectedCustomPreset is not null;
 
     public bool IsAnalyzing
     {
@@ -128,6 +167,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool ShowEmptyState => !HasCuts;
 
     public bool HasWarnings => !string.IsNullOrWhiteSpace(_warningsText);
+
+    public IReadOnlyList<float> WaveformPeaks => _analysisResult?.WaveformPeaks ?? Array.Empty<float>();
+
+    public TimeSpan AnalysisDuration => _analysisResult?.Duration ?? TimeSpan.Zero;
+
+    public IReadOnlyList<CutCandidate> TimelineCuts => CutCandidates
+        .Select(static candidate => candidate.ToModel())
+        .ToArray();
 
     public string StatusMessage
     {
@@ -203,6 +250,54 @@ public sealed class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _speechThresholdText, value))
             {
                 PersistSettingsIfValid();
+            }
+        }
+    }
+
+    public string CustomPresetNameText
+    {
+        get => _customPresetNameText;
+        set
+        {
+            if (SetProperty(ref _customPresetNameText, value))
+            {
+                RaisePresetStateProperties();
+            }
+        }
+    }
+
+    public HistoryEntryItemViewModel? SelectedHistoryEntry
+    {
+        get => _selectedHistoryEntry;
+        set
+        {
+            if (SetProperty(ref _selectedHistoryEntry, value))
+            {
+                RaiseStateProperties();
+            }
+        }
+    }
+
+    public CustomPresetItemViewModel? SelectedCustomPreset
+    {
+        get => _selectedCustomPreset;
+        set
+        {
+            if (SetProperty(ref _selectedCustomPreset, value))
+            {
+                RaisePresetStateProperties();
+            }
+        }
+    }
+
+    public ExportCheckpointItemViewModel? SelectedPausedExport
+    {
+        get => _selectedPausedExport;
+        set
+        {
+            if (SetProperty(ref _selectedPausedExport, value))
+            {
+                RaiseStateProperties();
             }
         }
     }
@@ -342,6 +437,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             WarningsText = string.Join(Environment.NewLine, _analysisResult.Warnings);
             StatusMessage = $"Analysis complete. {_analysisResult.CutCandidates.Count} cut candidates detected.";
             RecalculateSummary();
+            RecordAnalysisHistory();
             RaiseStateProperties();
         }
         catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -383,6 +479,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             SetBusy(true, "Rendering trimmed video with FFmpeg...");
             var request = BuildExportRequest();
+            var requestFingerprint = ExportRequestFingerprint.Compute(request);
+            _activeCheckpoint ??= _exportCheckpointStore.Find(requestFingerprint);
             var progress = new Progress<VideoExportProgress>(OnExportProgressReported);
             var outputDirectory = Path.GetDirectoryName(_outputPath);
             if (!string.IsNullOrWhiteSpace(outputDirectory))
@@ -391,13 +489,32 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             BeginExportPresentation(request);
-            await _workflowService.ExportAsync(request, progress, cancellationSource.Token);
+            var executionOptions = new ExportExecutionOptions(
+                _activeCheckpoint,
+                checkpoint => OnCheckpointSaved(checkpoint));
+            await _workflowService.ExportAsync(request, progress, cancellationSource.Token, executionOptions);
+            if (_activeCheckpoint is not null)
+            {
+                _exportCheckpointStore.Delete(_activeCheckpoint);
+                _activeCheckpoint = null;
+            }
+
+            RecordExportHistory(request);
+            RefreshPausedExports();
             StatusMessage = $"Export complete: {_outputPath}";
             CompleteExportPresentation(request);
         }
         catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
         {
-            StatusMessage = "Export canceled.";
+            if (_pauseRequested && !_discardRequested)
+            {
+                StatusMessage = "Export paused. Resume it from Paused Jobs.";
+            }
+            else
+            {
+                DiscardActiveCheckpoint();
+                StatusMessage = "Export canceled.";
+            }
         }
         catch (Exception exception)
         {
@@ -408,6 +525,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             _operationCancellationSource = null;
             OnPropertyChanged(nameof(CanCancelOperation));
+            _pauseRequested = false;
+            _discardRequested = false;
+            RefreshPausedExports();
             if (!IsExportCompleted)
             {
                 EndExportPresentation();
@@ -424,9 +544,154 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (IsExporting)
+        {
+            _discardRequested = true;
+            _pauseRequested = false;
+        }
+
         StatusMessage = "Canceling current operation...";
         _operationCancellationSource.Cancel();
         OnPropertyChanged(nameof(CanCancelOperation));
+    }
+
+    public void PauseOperation()
+    {
+        if (!IsExporting || _operationCancellationSource is null || _operationCancellationSource.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _pauseRequested = true;
+        _discardRequested = false;
+        StatusMessage = "Pausing export after the current batch...";
+        _operationCancellationSource.Cancel();
+        OnPropertyChanged(nameof(CanCancelOperation));
+    }
+
+    public async Task ResumeSelectedExport()
+    {
+        if (_isBusy || SelectedPausedExport is null)
+        {
+            return;
+        }
+
+        RestoreCheckpoint(SelectedPausedExport.Checkpoint);
+        _activeCheckpoint = SelectedPausedExport.Checkpoint;
+        await ExportAsync();
+    }
+
+    public void LoadSelectedHistory()
+    {
+        if (_isBusy || SelectedHistoryEntry?.Entry.AnalysisResult is not { } analysis)
+        {
+            return;
+        }
+
+        _inputPath = SelectedHistoryEntry.Entry.InputPath;
+        _outputPath = SelectedHistoryEntry.Entry.OutputPath ?? SuggestOutputPath(_inputPath);
+        ApplySettingsToView(analysis.Settings);
+        _analysisResult = analysis;
+        PopulateCuts(analysis.CutCandidates);
+        WarningsText = string.Join(Environment.NewLine, analysis.Warnings);
+        RecalculateSummary();
+        StatusMessage = "Saved analysis loaded. Review the cuts or export the restored plan.";
+        OnPropertyChanged(nameof(InputPathDisplay));
+        OnPropertyChanged(nameof(OutputPathDisplay));
+        OnPropertyChanged(nameof(SuggestedOutputFileName));
+        RaiseStateProperties();
+    }
+
+    public void SaveCustomPreset()
+    {
+        if (!CanSaveCustomPreset || !TryBuildPersistedPreferences(out var preferences))
+        {
+            return;
+        }
+
+        var name = CustomPresetNameText.Trim();
+        var preset = new NamedPreset(
+            name,
+            preferences.MinSilenceMs,
+            preferences.MinSpeechMs,
+            preferences.PaddingBeforeMs,
+            preferences.PaddingAfterMs,
+            preferences.SpeechThreshold,
+            preferences.ExportPreset);
+        if (!_customPresetStore.Upsert(preset))
+        {
+            StatusMessage = "The custom preset could not be saved.";
+            return;
+        }
+
+        RefreshCustomPresets();
+        SelectedCustomPreset = CustomPresets.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+        StatusMessage = $"Saved custom preset '{name}'.";
+    }
+
+    public void ApplySelectedCustomPreset()
+    {
+        if (_isBusy || SelectedCustomPreset is null)
+        {
+            return;
+        }
+
+        ApplySettingsToView(SelectedCustomPreset.Preset.ToAnalysisSettings());
+        StatusMessage = $"Applied custom preset '{SelectedCustomPreset.Name}'.";
+    }
+
+    public void DeleteSelectedCustomPreset()
+    {
+        if (_isBusy || SelectedCustomPreset is null)
+        {
+            return;
+        }
+
+        var name = SelectedCustomPreset.Name;
+        if (_customPresetStore.Delete(name))
+        {
+            RefreshCustomPresets();
+            StatusMessage = $"Deleted custom preset '{name}'.";
+        }
+    }
+
+    public void AddManualCut(TimeRange range)
+    {
+        if (_isBusy || _analysisResult is null || range.IsEmpty || range.Duration < TimeSpan.FromMilliseconds(100))
+        {
+            return;
+        }
+
+        var clampedStart = range.Start < TimeSpan.Zero ? TimeSpan.Zero : range.Start;
+        var clampedEnd = range.End > _analysisResult.Duration ? _analysisResult.Duration : range.End;
+        if (clampedEnd - clampedStart < TimeSpan.FromMilliseconds(100))
+        {
+            return;
+        }
+
+        var candidates = CutCandidates
+            .Select(static candidate => candidate.ToModel())
+            .Append(new CutCandidate(clampedStart, clampedEnd, "Manual cut"))
+            .OrderBy(static candidate => candidate.Start)
+            .ThenBy(static candidate => candidate.End)
+            .ToArray();
+        PopulateCuts(candidates);
+        RecalculateSummary();
+        StatusMessage = "Manual cut added to the timeline.";
+    }
+
+    public void ToggleCutAt(TimeSpan position)
+    {
+        if (_isBusy)
+        {
+            return;
+        }
+
+        var candidate = CutCandidates.FirstOrDefault(item => position >= item.Start && position <= item.End);
+        if (candidate is not null)
+        {
+            candidate.IsEnabled = !candidate.IsEnabled;
+        }
     }
 
     public async Task LoadShowcaseAsync(string inputPath, bool analyze)
@@ -490,6 +755,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         OutputDurationText = "--";
         OnPropertyChanged(nameof(HasCuts));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(WaveformPeaks));
+        OnPropertyChanged(nameof(AnalysisDuration));
+        OnPropertyChanged(nameof(TimelineCuts));
         RaiseStateProperties();
     }
 
@@ -535,6 +803,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             StatusMessage = "Detection settings changed, but could not be saved to disk.";
         }
+
+        RaisePresetStateProperties();
     }
 
     private bool TryBuildPersistedPreferences(out AnalysisSettingsPreferences preferences)
@@ -592,6 +862,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         OnPropertyChanged(nameof(HasCuts));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(TimelineCuts));
     }
 
     private void OnCutCandidatePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -599,6 +870,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         if (e.PropertyName == nameof(CutCandidateItemViewModel.IsEnabled))
         {
             RecalculateSummary();
+            OnPropertyChanged(nameof(TimelineCuts));
         }
     }
 
@@ -640,8 +912,182 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanChooseOutput));
         OnPropertyChanged(nameof(CanResetReview));
         OnPropertyChanged(nameof(CanCancelOperation));
+        OnPropertyChanged(nameof(CanPauseOperation));
+        OnPropertyChanged(nameof(CanResumeSelectedExport));
+        OnPropertyChanged(nameof(CanLoadSelectedHistory));
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
+    }
+
+    private void RaisePresetStateProperties()
+    {
+        OnPropertyChanged(nameof(CanSaveCustomPreset));
+        OnPropertyChanged(nameof(CanApplySelectedCustomPreset));
+        OnPropertyChanged(nameof(CanDeleteSelectedCustomPreset));
+    }
+
+    private void RecordAnalysisHistory()
+    {
+        if (_analysisResult is null || string.IsNullOrWhiteSpace(_inputPath))
+        {
+            return;
+        }
+
+        var snapshot = CreateCurrentAnalysisSnapshot();
+        var request = BuildExportRequest();
+        _historyStore.Append(new HistoryEntry(
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow,
+            HistoryEntryKind.Analysis,
+            HistoryEntryStatus.Completed,
+            _inputPath,
+            _outputPath,
+            ExportRequestFingerprint.Compute(request),
+            snapshot,
+            null,
+            "Analysis complete."));
+        RefreshHistoryEntries();
+    }
+
+    private void RecordExportHistory(ExportRequest request)
+    {
+        if (_analysisResult is null)
+        {
+            return;
+        }
+
+        long? outputBytes = null;
+        try
+        {
+            if (File.Exists(request.OutputPath))
+            {
+                outputBytes = new FileInfo(request.OutputPath).Length;
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        _historyStore.Append(new HistoryEntry(
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow,
+            HistoryEntryKind.Export,
+            HistoryEntryStatus.Completed,
+            request.InputPath,
+            request.OutputPath,
+            ExportRequestFingerprint.Compute(request),
+            CreateCurrentAnalysisSnapshot(),
+            outputBytes,
+            "Export complete."));
+        RefreshHistoryEntries();
+    }
+
+    private AnalysisResult CreateCurrentAnalysisSnapshot()
+    {
+        if (_analysisResult is null)
+        {
+            throw new InvalidOperationException("An analysis result is required for history.");
+        }
+
+        return _analysisResult with
+        {
+            Settings = BuildSettings(),
+            CutCandidates = CutCandidates.Select(static candidate => candidate.ToModel()).ToArray()
+        };
+    }
+
+    private void RefreshHistoryEntries()
+    {
+        var selectedId = SelectedHistoryEntry?.Entry.Id;
+        HistoryEntries.Clear();
+        foreach (var entry in _historyStore.Load())
+        {
+            HistoryEntries.Add(new HistoryEntryItemViewModel(entry));
+        }
+
+        SelectedHistoryEntry = HistoryEntries.FirstOrDefault(item => item.Entry.Id == selectedId);
+    }
+
+    private void RefreshCustomPresets()
+    {
+        var selectedName = SelectedCustomPreset?.Name;
+        CustomPresets.Clear();
+        foreach (var preset in _customPresetStore.Load())
+        {
+            CustomPresets.Add(new CustomPresetItemViewModel(preset));
+        }
+
+        SelectedCustomPreset = CustomPresets.FirstOrDefault(item => string.Equals(item.Name, selectedName, StringComparison.OrdinalIgnoreCase));
+        RaisePresetStateProperties();
+    }
+
+    private void RefreshPausedExports()
+    {
+        var selectedJobId = SelectedPausedExport?.Checkpoint.JobId;
+        PausedExports.Clear();
+        foreach (var checkpoint in _exportCheckpointStore.Load())
+        {
+            PausedExports.Add(new ExportCheckpointItemViewModel(checkpoint));
+        }
+
+        SelectedPausedExport = PausedExports.FirstOrDefault(item => item.Checkpoint.JobId == selectedJobId);
+        OnPropertyChanged(nameof(CanResumeSelectedExport));
+    }
+
+    private void OnCheckpointSaved(ExportCheckpoint checkpoint)
+    {
+        _activeCheckpoint = checkpoint;
+        if (!_exportCheckpointStore.Save(checkpoint))
+        {
+            StatusMessage = "The export checkpoint could not be saved; completed batches will not be resumable after restart.";
+        }
+
+        RefreshPausedExports();
+    }
+
+    private void DiscardActiveCheckpoint()
+    {
+        if (_activeCheckpoint is not null)
+        {
+            _exportCheckpointStore.Delete(_activeCheckpoint);
+            _activeCheckpoint = null;
+        }
+
+        RefreshPausedExports();
+    }
+
+    private void RestoreCheckpoint(ExportCheckpoint checkpoint)
+    {
+        _inputPath = checkpoint.Request.InputPath;
+        _outputPath = checkpoint.Request.OutputPath;
+        SelectedPreset = checkpoint.Request.Preset;
+        _analysisResult = new AnalysisResult(
+            checkpoint.Request.InputPath,
+            checkpoint.Request.SourceDuration,
+            BuildSettings(),
+            checkpoint.Request.KeepSegments,
+            checkpoint.Request.CutCandidates,
+            new[] { "Restored from a paused export checkpoint." });
+        PopulateCuts(checkpoint.Request.CutCandidates);
+        WarningsText = string.Join(Environment.NewLine, _analysisResult.Warnings);
+        RecalculateSummary();
+        OnPropertyChanged(nameof(InputPathDisplay));
+        OnPropertyChanged(nameof(OutputPathDisplay));
+        OnPropertyChanged(nameof(SuggestedOutputFileName));
+        RaiseStateProperties();
+    }
+
+    private void ApplySettingsToView(AnalysisSettings settings)
+    {
+        MinSilenceMsText = settings.MinSilenceMs.ToString(CultureInfo.InvariantCulture);
+        MinSpeechMsText = settings.MinSpeechMs.ToString(CultureInfo.InvariantCulture);
+        PaddingBeforeMsText = settings.PaddingBeforeMs.ToString(CultureInfo.InvariantCulture);
+        PaddingAfterMsText = settings.PaddingAfterMs.ToString(CultureInfo.InvariantCulture);
+        SpeechThresholdText = settings.SpeechThreshold.ToString("0.##", CultureInfo.InvariantCulture);
+        SelectedPreset = settings.ExportPreset;
     }
 
     private void BeginAnalysisPresentation()
@@ -727,4 +1173,33 @@ public sealed class MainWindowViewModel : ViewModelBase
         float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
 
     private static string FormatDuration(TimeSpan value) => value.ToString(@"hh\:mm\:ss\.fff");
+
+    private sealed class NullHistoryStore : IHistoryStore
+    {
+        public IReadOnlyList<HistoryEntry> Load() => Array.Empty<HistoryEntry>();
+
+        public bool Append(HistoryEntry entry) => true;
+
+        public bool Remove(string id) => false;
+    }
+
+    private sealed class NullCustomPresetStore : ICustomPresetStore
+    {
+        public IReadOnlyList<NamedPreset> Load() => Array.Empty<NamedPreset>();
+
+        public bool Upsert(NamedPreset preset) => true;
+
+        public bool Delete(string name) => false;
+    }
+
+    private sealed class NullExportCheckpointStore : IExportCheckpointStore
+    {
+        public IReadOnlyList<ExportCheckpoint> Load() => Array.Empty<ExportCheckpoint>();
+
+        public ExportCheckpoint? Find(string requestFingerprint) => null;
+
+        public bool Save(ExportCheckpoint checkpoint) => true;
+
+        public bool Delete(ExportCheckpoint checkpoint) => true;
+    }
 }

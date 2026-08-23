@@ -1,5 +1,6 @@
 using CutThePause.App.Services;
 using CutThePause.Core.Models;
+using CutThePause.Core.Services;
 using CutThePause.Infrastructure.Abstractions;
 using CutThePause.Infrastructure.Models;
 
@@ -82,4 +83,95 @@ internal sealed class NoopVideoExporter : IVideoExporter
         CancellationToken cancellationToken,
         ExportExecutionOptions? executionOptions = null) =>
         Task.CompletedTask;
+}
+
+internal sealed class InMemoryHistoryStore : IHistoryStore
+{
+    private readonly List<HistoryEntry> _entries;
+
+    public InMemoryHistoryStore(IEnumerable<HistoryEntry>? entries = null)
+    {
+        _entries = entries?.ToList() ?? new List<HistoryEntry>();
+    }
+
+    public IReadOnlyList<HistoryEntry> Load() => _entries.ToArray();
+
+    public bool Append(HistoryEntry entry)
+    {
+        _entries.RemoveAll(existing => existing.Id == entry.Id);
+        _entries.Insert(0, entry);
+        return true;
+    }
+
+    public bool Remove(string id) => _entries.RemoveAll(entry => entry.Id == id) > 0;
+}
+
+internal sealed class InMemoryCustomPresetStore : ICustomPresetStore
+{
+    private readonly List<NamedPreset> _presets;
+
+    public InMemoryCustomPresetStore(IEnumerable<NamedPreset>? presets = null)
+    {
+        _presets = presets?.ToList() ?? new List<NamedPreset>();
+    }
+
+    public IReadOnlyList<NamedPreset> Load() => _presets.ToArray();
+
+    public bool Upsert(NamedPreset preset)
+    {
+        _presets.RemoveAll(existing => string.Equals(existing.Name, preset.Name, StringComparison.OrdinalIgnoreCase));
+        _presets.Insert(0, preset);
+        return true;
+    }
+
+    public bool Delete(string name) => _presets.RemoveAll(preset => string.Equals(preset.Name, name, StringComparison.OrdinalIgnoreCase)) > 0;
+}
+
+internal sealed class InMemoryExportCheckpointStore : IExportCheckpointStore
+{
+    private readonly List<ExportCheckpoint> _checkpoints = new();
+
+    public IReadOnlyList<ExportCheckpoint> Load() => _checkpoints.ToArray();
+
+    public ExportCheckpoint? Find(string requestFingerprint) =>
+        _checkpoints.FirstOrDefault(checkpoint => checkpoint.RequestFingerprint == requestFingerprint);
+
+    public bool Save(ExportCheckpoint checkpoint)
+    {
+        _checkpoints.RemoveAll(existing => existing.JobId == checkpoint.JobId);
+        _checkpoints.Insert(0, checkpoint);
+        return true;
+    }
+
+    public bool Delete(ExportCheckpoint checkpoint) => _checkpoints.RemoveAll(existing => existing.JobId == checkpoint.JobId) > 0;
+}
+
+internal sealed class BlockingCheckpointExporter : IVideoExporter
+{
+    public TaskCompletionSource<bool> Started { get; private set; } = CreateSignal();
+
+    public void ResetStarted() => Started = CreateSignal();
+
+    public async Task ExportAsync(
+        ExportRequest request,
+        IProgress<VideoExportProgress>? progress,
+        CancellationToken cancellationToken,
+        ExportExecutionOptions? executionOptions = null)
+    {
+        var checkpoint = executionOptions?.Checkpoint ?? new ExportCheckpoint(
+            Guid.NewGuid().ToString("N"),
+            ExportRequestFingerprint.Compute(request),
+            request,
+            Path.Combine(Path.GetTempPath(), $"cut-the-pause-test-job-{Guid.NewGuid():N}"),
+            Array.Empty<string>(),
+            Array.Empty<int>(),
+            DateTimeOffset.UtcNow,
+            "Software HEVC Main 10");
+        executionOptions?.CheckpointSaved?.Invoke(checkpoint);
+        Started.TrySetResult(true);
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+
+    private static TaskCompletionSource<bool> CreateSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
