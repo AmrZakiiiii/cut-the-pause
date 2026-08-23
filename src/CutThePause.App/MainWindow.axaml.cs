@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using CutThePause.App.Controls;
 using CutThePause.App.ViewModels;
 
 namespace CutThePause.App;
@@ -78,5 +79,33 @@ public partial class MainWindow : Window
 
     private void OnCancelOperationClick(object? sender, RoutedEventArgs e) => ViewModel.CancelOperation();
 
-    private void OnWindowClosing(object? sender, WindowClosingEventArgs e) => ViewModel.CancelOperation();
+    private void OnPauseOperationClick(object? sender, RoutedEventArgs e) => ViewModel.PauseOperation();
+
+    private void OnResumeExportClick(object? sender, RoutedEventArgs e) => _ = ViewModel.ResumeSelectedExport();
+
+    private void OnDiscardPausedExportClick(object? sender, RoutedEventArgs e) => ViewModel.DiscardSelectedExport();
+
+    private void OnSaveCustomPresetClick(object? sender, RoutedEventArgs e) => ViewModel.SaveCustomPreset();
+
+    private void OnApplyCustomPresetClick(object? sender, RoutedEventArgs e) => ViewModel.ApplySelectedCustomPreset();
+
+    private void OnDeleteCustomPresetClick(object? sender, RoutedEventArgs e) => ViewModel.DeleteSelectedCustomPreset();
+
+    private void OnLoadHistoryClick(object? sender, RoutedEventArgs e) => ViewModel.LoadSelectedHistory();
+
+    private void OnTimelineCutClicked(object? sender, TimelinePositionEventArgs e) => ViewModel.ToggleCutAt(e.Position);
+
+    private void OnTimelineRangeSelected(object? sender, TimelineRangeSelectedEventArgs e) => ViewModel.AddManualCut(e.Range);
+
+    private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (ViewModel.IsExporting)
+        {
+            ViewModel.PauseOperation();
+        }
+        else
+        {
+            ViewModel.CancelOperation();
+        }
+    }
 }

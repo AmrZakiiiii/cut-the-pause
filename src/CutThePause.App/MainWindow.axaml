@@ -112,6 +112,30 @@
                 <ComboBox Grid.Row="5" Grid.Column="1" Width="132" Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" ItemsSource="{Binding PresetOptions}" SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
               </Grid>
 
+              <Border Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="12">
+                <StackPanel Spacing="8">
+                  <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="Named custom presets" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Background="{StaticResource BrandPanelAltBrush}" Foreground="{StaticResource BrandTextBrush}" Watermark="Preset name" Text="{Binding CustomPresetNameText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Grid.Column="1" Background="{StaticResource BrandCyanBrush}" BorderBrush="{StaticResource BrandCyanBrush}" Click="OnSaveCustomPresetClick" Content="Save" Foreground="#081019" IsEnabled="{Binding CanSaveCustomPreset}" Padding="12,8" />
+                  </Grid>
+                  <ListBox Height="86" Background="{StaticResource BrandPanelAltBrush}" ItemsSource="{Binding CustomPresets}" SelectedItem="{Binding SelectedCustomPreset, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Spacing="2">
+                          <TextBlock Foreground="{StaticResource BrandTextBrush}" Text="{Binding Name}" />
+                          <TextBlock FontSize="11" Foreground="{StaticResource BrandMutedBrush}" Text="{Binding Summary}" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Background="{StaticResource BrandPanelAltBrush}" BorderBrush="{StaticResource BrandBorderBrush}" Click="OnApplyCustomPresetClick" Content="Apply" Foreground="{StaticResource BrandTextBrush}" IsEnabled="{Binding CanApplySelectedCustomPreset}" Padding="12,8" />
+                    <Button Background="{StaticResource BrandPanelAltBrush}" BorderBrush="{StaticResource BrandBorderBrush}" Click="OnDeleteCustomPresetClick" Content="Delete" Foreground="{StaticResource BrandTextBrush}" IsEnabled="{Binding CanDeleteSelectedCustomPreset}" Padding="12,8" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button
                     Background="{StaticResource BrandCyanBrush}"
@@ -160,12 +184,50 @@
               <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Choose `.mp4` for compact, high-quality 10-bit HEVC delivery or `.mov` for a much larger ProRes editing master." TextWrapping="Wrap" />
             </StackPanel>
           </Border>
+
+          <Border Background="{StaticResource BrandPanelBrush}" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="18" IsVisible="{Binding HasPausedExports}">
+            <StackPanel Spacing="10">
+              <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="Paused Jobs" />
+              <ListBox Height="76" Background="{StaticResource BrandPanelAltBrush}" ItemsSource="{Binding PausedExports}" SelectedItem="{Binding SelectedPausedExport, Mode=TwoWay}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Spacing="2">
+                      <TextBlock Foreground="{StaticResource BrandTextBrush}" Text="{Binding Title}" />
+                      <TextBlock FontSize="11" Foreground="{StaticResource BrandMutedBrush}" Text="{Binding Subtitle}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Background="{StaticResource BrandWarmBrush}" BorderBrush="{StaticResource BrandWarmBrush}" Click="OnResumeExportClick" Content="Resume" Foreground="#231408" FontWeight="Bold" IsEnabled="{Binding CanResumeSelectedExport}" Padding="12,8" />
+                <Button Background="{StaticResource BrandPanelAltBrush}" BorderBrush="{StaticResource BrandBorderBrush}" Click="OnDiscardPausedExportClick" Content="Discard" Foreground="{StaticResource BrandTextBrush}" IsEnabled="{Binding CanDiscardSelectedExport}" Padding="12,8" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource BrandPanelBrush}" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="20" Padding="18" IsVisible="{Binding HasHistory}">
+            <StackPanel Spacing="10">
+              <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource BrandTextBrush}" Text="Analysis &amp; Export History" />
+              <ListBox Height="110" Background="{StaticResource BrandPanelAltBrush}" ItemsSource="{Binding HistoryEntries}" SelectedItem="{Binding SelectedHistoryEntry, Mode=TwoWay}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Spacing="2">
+                      <TextBlock Foreground="{StaticResource BrandTextBrush}" Text="{Binding Title}" />
+                      <TextBlock FontSize="11" Foreground="{StaticResource BrandMutedBrush}" Text="{Binding Subtitle}" />
+                      <TextBlock FontSize="11" Foreground="{StaticResource BrandCyanBrush}" Text="{Binding OutputText}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <Button Background="{StaticResource BrandPanelAltBrush}" BorderBrush="{StaticResource BrandBorderBrush}" Click="OnLoadHistoryClick" Content="Load Selected Review" Foreground="{StaticResource BrandTextBrush}" IsEnabled="{Binding CanLoadSelectedHistory}" Padding="12,8" HorizontalAlignment="Left" />
+            </StackPanel>
+          </Border>
         </StackPanel>
       </ScrollViewer>
     </Border>
 
     <Border Grid.Column="1" Background="#0E1622" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="28" Padding="24">
-      <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="18">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="18">
         <StackPanel Spacing="6">
           <TextBlock FontSize="32" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="Review Detected Cuts" />
           <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Inspect each detected silence range, disable any false positives, then export the cleaned cut." TextWrapping="Wrap" />
@@ -201,7 +263,14 @@
           </StackPanel>
         </Border>
 
-        <Grid Grid.Row="3">
+        <Border Grid.Row="3" Background="#131E2A" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="18" Padding="14" IsVisible="{Binding HasAnalysis}">
+          <StackPanel Spacing="8">
+            <TextBlock Foreground="{StaticResource BrandMutedBrush}" Text="Waveform timeline · click a detected cut to toggle it, or drag to add a manual cut." TextWrapping="Wrap" />
+            <controls:WaveformTimeline Height="118" Peaks="{Binding WaveformPeaks}" Cuts="{Binding TimelineCuts}" Duration="{Binding AnalysisDuration}" CutClicked="OnTimelineCutClicked" RangeSelected="OnTimelineRangeSelected" />
+          </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="4">
           <Border Background="#131E2A" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="18" Padding="24" IsVisible="{Binding ShowEmptyState}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
               <controls:BrandIcon Width="76" Height="76" />
@@ -319,6 +388,17 @@
                 Content="Cancel Export"
                 Foreground="{StaticResource BrandTextBrush}"
                 IsEnabled="{Binding CanCancelOperation}"
+                IsVisible="{Binding IsExporting}"
+                HorizontalAlignment="Right"
+                Padding="16,10" />
+            <Button
+                Background="{StaticResource BrandWarmBrush}"
+                BorderBrush="{StaticResource BrandWarmBrush}"
+                Click="OnPauseOperationClick"
+                Content="Pause Export"
+                Foreground="#231408"
+                FontWeight="Bold"
+                IsEnabled="{Binding CanPauseOperation}"
                 IsVisible="{Binding IsExporting}"
                 HorizontalAlignment="Right"
                 Padding="16,10" />

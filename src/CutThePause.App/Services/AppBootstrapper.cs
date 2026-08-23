@@ -19,10 +19,18 @@ public static class AppBootstrapper
         var vadAnalyzer = new FallbackVadAnalyzer(sileroAnalyzer, fallbackAnalyzer);
         var workflowService = new VideoWorkflowService(metadataReader, audioExtractor, vadAnalyzer, videoExporter);
         var settingsStore = new JsonAnalysisSettingsStore();
+        var historyStore = new JsonHistoryStore();
+        var customPresetStore = new JsonCustomPresetStore();
+        var exportCheckpointStore = new JsonExportCheckpointStore();
 
         return new MainWindow
         {
-            DataContext = new MainWindowViewModel(workflowService, settingsStore)
+            DataContext = new MainWindowViewModel(
+                workflowService,
+                settingsStore,
+                historyStore,
+                customPresetStore,
+                exportCheckpointStore)
         };
     }
 

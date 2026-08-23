@@ -114,6 +114,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public bool CanResumeSelectedExport => !_isBusy && SelectedPausedExport is not null;
 
+    public bool CanDiscardSelectedExport => !_isBusy && SelectedPausedExport is not null;
+
     public bool CanLoadSelectedHistory => !_isBusy && SelectedHistoryEntry?.CanLoad == true;
 
     public bool CanSaveCustomPreset => !_isBusy && !string.IsNullOrWhiteSpace(CustomPresetNameText) && TryBuildPersistedPreferences(out _);
@@ -164,9 +166,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public bool HasCuts => CutCandidates.Count > 0;
 
-    public bool ShowEmptyState => !HasCuts;
+    public bool ShowEmptyState => !HasAnalysis;
 
     public bool HasWarnings => !string.IsNullOrWhiteSpace(_warningsText);
+
+    public bool HasAnalysis => _analysisResult is not null;
+
+    public bool HasHistory => HistoryEntries.Count > 0;
+
+    public bool HasPausedExports => PausedExports.Count > 0;
 
     public IReadOnlyList<float> WaveformPeaks => _analysisResult?.WaveformPeaks ?? Array.Empty<float>();
 
@@ -581,6 +589,21 @@ public sealed class MainWindowViewModel : ViewModelBase
         await ExportAsync();
     }
 
+    public void DiscardSelectedExport()
+    {
+        if (_isBusy || SelectedPausedExport is null)
+        {
+            return;
+        }
+
+        var checkpoint = SelectedPausedExport.Checkpoint;
+        if (_exportCheckpointStore.Delete(checkpoint))
+        {
+            RefreshPausedExports();
+            StatusMessage = "Paused export discarded.";
+        }
+    }
+
     public void LoadSelectedHistory()
     {
         if (_isBusy || SelectedHistoryEntry?.Entry.AnalysisResult is not { } analysis)
@@ -755,6 +778,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         OutputDurationText = "--";
         OnPropertyChanged(nameof(HasCuts));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(HasAnalysis));
         OnPropertyChanged(nameof(WaveformPeaks));
         OnPropertyChanged(nameof(AnalysisDuration));
         OnPropertyChanged(nameof(TimelineCuts));
@@ -914,7 +938,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanCancelOperation));
         OnPropertyChanged(nameof(CanPauseOperation));
         OnPropertyChanged(nameof(CanResumeSelectedExport));
+        OnPropertyChanged(nameof(CanDiscardSelectedExport));
         OnPropertyChanged(nameof(CanLoadSelectedHistory));
+        OnPropertyChanged(nameof(HasAnalysis));
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
     }
@@ -1009,6 +1035,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
 
         SelectedHistoryEntry = HistoryEntries.FirstOrDefault(item => item.Entry.Id == selectedId);
+        OnPropertyChanged(nameof(HasHistory));
     }
 
     private void RefreshCustomPresets()
@@ -1035,6 +1062,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         SelectedPausedExport = PausedExports.FirstOrDefault(item => item.Checkpoint.JobId == selectedJobId);
         OnPropertyChanged(nameof(CanResumeSelectedExport));
+        OnPropertyChanged(nameof(CanDiscardSelectedExport));
+        OnPropertyChanged(nameof(HasPausedExports));
     }
 
     private void OnCheckpointSaved(ExportCheckpoint checkpoint)
