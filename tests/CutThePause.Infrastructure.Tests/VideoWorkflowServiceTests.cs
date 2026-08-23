@@ -23,6 +23,7 @@ public sealed class VideoWorkflowServiceTests
             "Reading video metadata...",
             "Extracting audio...",
             "Detecting speech...",
+            "Building waveform and review...",
             "Building review..."
         }, stages);
     }
@@ -67,7 +68,10 @@ public sealed class VideoWorkflowServiceTests
     public async Task AnalyzeAsync_UsesFileBackedAudioWhenProductionComponentsSupportIt()
     {
         var audioPath = Path.Combine(Path.GetTempPath(), $"cut-the-pause-workflow-{Guid.NewGuid():N}.f32le");
-        await File.WriteAllBytesAsync(audioPath, Array.Empty<byte>());
+        var samples = new[] { 0.1f, -0.5f, 0.2f, -1f };
+        await File.WriteAllBytesAsync(
+            audioPath,
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan()).ToArray());
         var progressStages = new List<string>();
         var streamingVad = new StreamingVadAnalyzer();
         var workflow = new VideoWorkflowService(
@@ -76,7 +80,7 @@ public sealed class VideoWorkflowServiceTests
             streamingVad,
             new NoopVideoExporter());
 
-        await workflow.AnalyzeAsync(
+        var result = await workflow.AnalyzeAsync(
             "input.mov",
             new AnalysisSettings(),
             CancellationToken.None,
@@ -84,6 +88,8 @@ public sealed class VideoWorkflowServiceTests
 
         Assert.True(streamingVad.WasCalled);
         Assert.Contains("Detecting speech from streamed audio...", progressStages);
+        Assert.Contains("Building waveform and review...", progressStages);
+        Assert.NotEmpty(result.WaveformPeaks);
         Assert.False(File.Exists(audioPath));
     }
 
@@ -130,7 +136,10 @@ public sealed class VideoWorkflowServiceTests
             throw new NotSupportedException();
 
         public Task<PcmAudioFile> ExtractToFileAsync(string inputPath, CancellationToken cancellationToken) =>
-            Task.FromResult(new PcmAudioFile(_audioPath, 16_000, 0));
+            Task.FromResult(new PcmAudioFile(
+                _audioPath,
+                16_000,
+                new FileInfo(_audioPath).Length / sizeof(float)));
     }
 
     private sealed class ImmediateVadAnalyzer : IVadAnalyzer

@@ -1,6 +1,7 @@
 using CutThePause.Core.Models;
 using CutThePause.Core.Services;
 using CutThePause.Infrastructure.Abstractions;
+using CutThePause.Infrastructure.Waveform;
 
 namespace CutThePause.Infrastructure;
 
@@ -45,6 +46,20 @@ public sealed class VideoWorkflowService
             vadResult = await Task.Run(
                 () => streamingVadAnalyzer.DetectSpeechAsync(audioFile, settings, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
+
+            progress?.Report(new AnalysisProgress("Building waveform and review..."));
+            var waveformPeaks = await Task.Run(
+                () => WaveformPeakBuilder.Build(audioFile, WaveformPeakBuilder.DefaultPeakCount, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+
+            progress?.Report(new AnalysisProgress("Building review..."));
+            return CutPlanBuilder.Build(
+                inputPath,
+                metadata.Duration,
+                vadResult.SpeechSegments,
+                settings,
+                warnings: AddWarnings(vadResult),
+                waveformPeaks);
         }
         else
         {
@@ -54,21 +69,41 @@ public sealed class VideoWorkflowService
             vadResult = await Task.Run(
                 () => _vadAnalyzer.DetectSpeechAsync(audio, settings, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
-        }
 
+            progress?.Report(new AnalysisProgress("Building waveform and review..."));
+            var waveformPeaks = await Task.Run(
+                () => WaveformPeakBuilder.Build(audio, WaveformPeakBuilder.DefaultPeakCount, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+
+            progress?.Report(new AnalysisProgress("Building review..."));
+            return CutPlanBuilder.Build(
+                inputPath,
+                metadata.Duration,
+                vadResult.SpeechSegments,
+                settings,
+                warnings: AddWarnings(vadResult),
+                waveformPeaks);
+        }
+    }
+
+    public Task ExportAsync(
+        ExportRequest request,
+        IProgress<VideoExportProgress>? progress,
+        CancellationToken cancellationToken,
+        ExportExecutionOptions? executionOptions = null)
+    {
+        _ = executionOptions;
+        return _videoExporter.ExportAsync(request, progress, cancellationToken);
+    }
+
+    private static IReadOnlyList<string> AddWarnings(VadAnalysisResult vadResult)
+    {
         var warnings = vadResult.Warnings.ToList();
         if (vadResult.SpeechSegments.Count == 0)
         {
             warnings.Add("No speech segments were detected, so the current analysis keeps the full video to avoid destructive edits.");
         }
 
-        progress?.Report(new AnalysisProgress("Building review..."));
-        return CutPlanBuilder.Build(inputPath, metadata.Duration, vadResult.SpeechSegments, settings, warnings);
+        return warnings;
     }
-
-    public Task ExportAsync(
-        ExportRequest request,
-        IProgress<VideoExportProgress>? progress,
-        CancellationToken cancellationToken) =>
-        _videoExporter.ExportAsync(request, progress, cancellationToken);
 }
