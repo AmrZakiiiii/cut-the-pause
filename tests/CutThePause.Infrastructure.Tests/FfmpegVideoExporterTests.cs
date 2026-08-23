@@ -141,6 +141,111 @@ public sealed class FfmpegVideoExporterTests : IDisposable
         Assert.False(File.Exists(runner.ProgressArguments[0][^1]));
     }
 
+    [Fact]
+    public async Task PausedExport_RetainsCompletedBatchCheckpoint()
+    {
+        var finalPath = Path.Combine(_tempDirectory, "paused.mp4");
+        var request = CreateLargeRequest(finalPath);
+        using var cancellationSource = new CancellationTokenSource();
+        ExportCheckpoint? checkpoint = null;
+        var runner = new RecordingExportRunner(exitCode: 0);
+        var options = new ExportExecutionOptions(
+            CheckpointSaved: savedCheckpoint =>
+            {
+                checkpoint = savedCheckpoint;
+                if (savedCheckpoint.CompletedBatchIndexes.Count == 1)
+                {
+                    cancellationSource.Cancel();
+                }
+            });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new FfmpegVideoExporter(new FakeLocator(), runner).ExportAsync(
+                request,
+                null,
+                cancellationSource.Token,
+                options));
+
+        Assert.NotNull(checkpoint);
+        Assert.Single(checkpoint!.CompletedBatchIndexes);
+        Assert.True(File.Exists(checkpoint.BatchPaths[0]));
+        Assert.False(File.Exists(finalPath));
+    }
+
+    [Fact]
+    public async Task Resume_ExecutesOnlyUnfinishedBatches()
+    {
+        var finalPath = Path.Combine(_tempDirectory, "resume.mp4");
+        var request = CreateLargeRequest(finalPath);
+        using var cancellationSource = new CancellationTokenSource();
+        ExportCheckpoint? checkpoint = null;
+        var firstRunner = new RecordingExportRunner(exitCode: 0);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new FfmpegVideoExporter(new FakeLocator(), firstRunner).ExportAsync(
+                request,
+                null,
+                cancellationSource.Token,
+                new ExportExecutionOptions(
+                    CheckpointSaved: savedCheckpoint =>
+                    {
+                        checkpoint = savedCheckpoint;
+                        if (savedCheckpoint.CompletedBatchIndexes.Count == 1)
+                        {
+                            cancellationSource.Cancel();
+                        }
+                    })));
+
+        Assert.NotNull(checkpoint);
+        var resumeRunner = new RecordingExportRunner(exitCode: 0);
+
+        await new FfmpegVideoExporter(new FakeLocator(), resumeRunner).ExportAsync(
+            request,
+            null,
+            CancellationToken.None,
+            new ExportExecutionOptions(checkpoint));
+
+        Assert.Equal(3, resumeRunner.ProgressArguments.Count);
+        Assert.Single(resumeRunner.RunArguments);
+        Assert.True(File.Exists(finalPath));
+    }
+
+    [Fact]
+    public async Task ChangedRequestFingerprint_DoesNotReuseCheckpointBatches()
+    {
+        var finalPath = Path.Combine(_tempDirectory, "changed-request.mp4");
+        var request = CreateLargeRequest(finalPath);
+        using var cancellationSource = new CancellationTokenSource();
+        ExportCheckpoint? checkpoint = null;
+        var firstRunner = new RecordingExportRunner(exitCode: 0);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new FfmpegVideoExporter(new FakeLocator(), firstRunner).ExportAsync(
+                request,
+                null,
+                cancellationSource.Token,
+                new ExportExecutionOptions(
+                    CheckpointSaved: savedCheckpoint =>
+                    {
+                        checkpoint = savedCheckpoint;
+                        if (savedCheckpoint.CompletedBatchIndexes.Count == 1)
+                        {
+                            cancellationSource.Cancel();
+                        }
+                    })));
+
+        var changedRequest = request with { Preset = ExportPreset.HigherQuality };
+        var freshRunner = new RecordingExportRunner(exitCode: 0);
+
+        await new FfmpegVideoExporter(new FakeLocator(), freshRunner).ExportAsync(
+            changedRequest,
+            null,
+            CancellationToken.None,
+            new ExportExecutionOptions(checkpoint));
+
+        Assert.Equal(4, freshRunner.ProgressArguments.Count);
+    }
+
     private static ExportRequest CreateRequest(string outputPath, ExportPreset preset) => new(
         "input.mov",
         outputPath,
@@ -148,6 +253,19 @@ public sealed class FfmpegVideoExporterTests : IDisposable
         preset,
         Array.Empty<CutCandidate>(),
         new[] { new KeepSegment(0, TimeSpan.Zero, TimeSpan.FromSeconds(3)) });
+
+    private static ExportRequest CreateLargeRequest(string outputPath) => new(
+        "input.mp4",
+        outputPath,
+        TimeSpan.FromSeconds(200),
+        ExportPreset.Balanced,
+        Array.Empty<CutCandidate>(),
+        Enumerable.Range(0, 100)
+            .Select(index => new KeepSegment(
+                index,
+                TimeSpan.FromSeconds(index * 2),
+                TimeSpan.FromSeconds(index * 2 + 1)))
+            .ToArray());
 
     public void Dispose()
     {

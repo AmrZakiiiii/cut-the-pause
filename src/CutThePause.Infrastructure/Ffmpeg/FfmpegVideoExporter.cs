@@ -1,4 +1,5 @@
 using CutThePause.Core.Models;
+using CutThePause.Core.Services;
 using CutThePause.Infrastructure.Abstractions;
 using CutThePause.Infrastructure.Models;
 
@@ -18,7 +19,8 @@ public sealed class FfmpegVideoExporter : IVideoExporter
     public async Task ExportAsync(
         ExportRequest request,
         IProgress<VideoExportProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ExportExecutionOptions? executionOptions = null)
     {
         if (request.KeepSegments.Count == 0)
         {
@@ -40,14 +42,31 @@ public sealed class FfmpegVideoExporter : IVideoExporter
             EnsureSufficientFreeSpace(request);
 
             var binaries = await _locator.LocateAsync(cancellationToken).ConfigureAwait(false);
-            var preferHardwareAcceleration = OperatingSystem.IsMacOS() && !IsMovOutput(request.OutputPath);
+            var requestFingerprint = ExportRequestFingerprint.Compute(request);
+            var initialHardwarePreference = OperatingSystem.IsMacOS() && !IsMovOutput(request.OutputPath);
+            var checkpoint = PrepareCheckpoint(
+                request,
+                requestFingerprint,
+                initialHardwarePreference,
+                executionOptions?.Checkpoint);
+            var retainCheckpointArtifacts = executionOptions?.Checkpoint is not null || executionOptions?.CheckpointSaved is not null;
+            executionOptions?.CheckpointSaved?.Invoke(checkpoint);
+
+            var preferHardwareAcceleration = ResolveHardwarePreference(
+                request,
+                checkpoint,
+                initialHardwarePreference);
             var attempt = await RenderBatchesAsync(
                 binaries.FfmpegPath,
                 request,
                 temporaryOutputPath,
                 preferHardwareAcceleration,
                 progress,
+                checkpoint,
+                executionOptions?.CheckpointSaved,
+                retainCheckpointArtifacts,
                 cancellationToken).ConfigureAwait(false);
+            checkpoint = attempt.Checkpoint;
 
             if (attempt.Succeeded)
             {
@@ -68,13 +87,20 @@ public sealed class FfmpegVideoExporter : IVideoExporter
                     "Retrying with software HEVC Main 10...",
                     "Software HEVC Main 10");
 
+                checkpoint = ResetCheckpointForFallback(checkpoint, requestFingerprint);
+                executionOptions?.CheckpointSaved?.Invoke(checkpoint);
+
                 var fallbackAttempt = await RenderBatchesAsync(
                     binaries.FfmpegPath,
                     request,
                     temporaryOutputPath,
                     preferHardwareAcceleration: false,
                     progress,
+                    checkpoint,
+                    executionOptions?.CheckpointSaved,
+                    retainCheckpointArtifacts,
                     cancellationToken).ConfigureAwait(false);
+                checkpoint = fallbackAttempt.Checkpoint;
 
                 if (fallbackAttempt.Succeeded)
                 {
@@ -102,14 +128,29 @@ public sealed class FfmpegVideoExporter : IVideoExporter
         string temporaryOutputPath,
         bool preferHardwareAcceleration,
         IProgress<VideoExportProgress>? progress,
+        ExportCheckpoint checkpoint,
+        Action<ExportCheckpoint>? checkpointSaved,
+        bool retainCheckpointArtifacts,
         CancellationToken cancellationToken)
     {
-        var batchPaths = new List<string>();
-        var attemptId = Guid.NewGuid().ToString("N");
         var batchCount = (request.KeepSegments.Count + FfmpegExportCommandBuilder.MaxSegmentsPerCommand - 1)
             / FfmpegExportCommandBuilder.MaxSegmentsPerCommand;
         var completedDuration = TimeSpan.Zero;
         var encoderLabel = preferHardwareAcceleration ? "VideoToolbox HEVC Main 10" : "Software HEVC Main 10";
+        var batchPaths = Enumerable.Range(0, batchCount)
+            .Select(index => CreateBatchOutputPath(checkpoint.WorkingDirectory, request.OutputPath, index))
+            .ToArray();
+        var completedBatchIndexes = checkpoint.CompletedBatchIndexes
+            .Where(index => index >= 0 && index < batchCount && IsUsableBatch(batchPaths[index]))
+            .ToHashSet();
+        checkpoint = checkpoint with
+        {
+            BatchPaths = batchPaths,
+            CompletedBatchIndexes = completedBatchIndexes.OrderBy(static index => index).ToArray()
+        };
+        Directory.CreateDirectory(checkpoint.WorkingDirectory);
+        checkpointSaved?.Invoke(checkpoint);
+
         string? concatListPath = null;
 
         try
@@ -122,8 +163,25 @@ public sealed class FfmpegVideoExporter : IVideoExporter
                     .Skip(batchIndex * FfmpegExportCommandBuilder.MaxSegmentsPerCommand)
                     .Take(FfmpegExportCommandBuilder.MaxSegmentsPerCommand)
                     .ToArray();
-                var batchPath = CreateBatchOutputPath(request.OutputPath, attemptId, batchIndex);
-                batchPaths.Add(batchPath);
+                var batchPath = batchPaths[batchIndex];
+
+                if (completedBatchIndexes.Contains(batchIndex))
+                {
+                    var resumedDuration = batchSegments.Aggregate(
+                        TimeSpan.Zero,
+                        static (current, segment) => current + segment.Duration);
+                    completedDuration += resumedDuration;
+                    ReportProgress(
+                        progress,
+                        request,
+                        FractionForDuration(completedDuration, request.OutputDuration),
+                        completedDuration,
+                        $"Resuming completed batch {batchIndex + 1} of {batchCount}...",
+                        checkpoint.EncoderLabel);
+                    continue;
+                }
+
+                TryDeleteTemporaryOutput(batchPath);
 
                 var batchRequest = request with
                 {
@@ -156,14 +214,22 @@ public sealed class FfmpegVideoExporter : IVideoExporter
 
                 if (result.ExitCode != 0)
                 {
-                    return new RenderAttempt(false, result.StandardError, commandPlan.EncoderLabel);
+                    return new RenderAttempt(false, result.StandardError, commandPlan.EncoderLabel, checkpoint);
                 }
 
                 completedDuration += batchRequest.OutputDuration;
+                completedBatchIndexes.Add(batchIndex);
+                checkpoint = checkpoint with
+                {
+                    BatchPaths = batchPaths,
+                    CompletedBatchIndexes = completedBatchIndexes.OrderBy(static index => index).ToArray(),
+                    EncoderLabel = commandPlan.EncoderLabel
+                };
+                checkpointSaved?.Invoke(checkpoint);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            concatListPath = CreateConcatListPath(request.OutputPath, attemptId);
+            concatListPath = CreateConcatListPath(checkpoint.WorkingDirectory);
             await WriteConcatListAsync(concatListPath, batchPaths, cancellationToken).ConfigureAwait(false);
 
             ReportProgress(
@@ -180,21 +246,29 @@ public sealed class FfmpegVideoExporter : IVideoExporter
                 cancellationToken).ConfigureAwait(false);
             if (concatResult.ExitCode != 0)
             {
-                return new RenderAttempt(false, concatResult.StandardError, encoderLabel);
+                return new RenderAttempt(false, concatResult.StandardError, encoderLabel, checkpoint);
             }
 
-            return new RenderAttempt(true, string.Empty, encoderLabel);
+            return new RenderAttempt(true, string.Empty, encoderLabel, checkpoint);
         }
         finally
         {
-            foreach (var batchPath in batchPaths)
+            for (var batchIndex = 0; batchIndex < batchPaths.Length; batchIndex++)
             {
-                TryDeleteTemporaryOutput(batchPath);
+                if (!retainCheckpointArtifacts || !completedBatchIndexes.Contains(batchIndex))
+                {
+                    TryDeleteTemporaryOutput(batchPaths[batchIndex]);
+                }
             }
 
             if (concatListPath is not null)
             {
                 TryDeleteTemporaryOutput(concatListPath);
+            }
+
+            if (!retainCheckpointArtifacts)
+            {
+                TryDeleteEmptyDirectory(checkpoint.WorkingDirectory);
             }
         }
     }
@@ -402,19 +476,135 @@ public sealed class FfmpegVideoExporter : IVideoExporter
         return Path.Combine(directory, $".{fileName}.{Guid.NewGuid():N}.cut-the-pause{extension}");
     }
 
-    private static string CreateBatchOutputPath(string outputPath, string attemptId, int batchIndex)
+    private static ExportCheckpoint PrepareCheckpoint(
+        ExportRequest request,
+        string requestFingerprint,
+        bool preferHardwareAcceleration,
+        ExportCheckpoint? requestedCheckpoint)
     {
-        var directory = Path.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory;
+        var batchCount = (request.KeepSegments.Count + FfmpegExportCommandBuilder.MaxSegmentsPerCommand - 1)
+            / FfmpegExportCommandBuilder.MaxSegmentsPerCommand;
+        if (requestedCheckpoint is not null &&
+            IsCompatibleCheckpoint(request, requestFingerprint, batchCount, requestedCheckpoint))
+        {
+            return requestedCheckpoint;
+        }
+
+        var outputPath = Path.GetFullPath(request.OutputPath);
+        var outputDirectory = Path.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory;
+        var jobId = Guid.NewGuid().ToString("N");
         var fileName = Path.GetFileNameWithoutExtension(outputPath);
-        var extension = Path.GetExtension(outputPath);
-        return Path.Combine(directory, $".{fileName}.{attemptId}.batch-{batchIndex + 1:D4}{extension}");
+        var workingDirectory = Path.Combine(outputDirectory, $".{fileName}.{jobId}.cut-the-pause");
+        var encoderLabel = IsMovOutput(request.OutputPath)
+            ? "ProRes MOV master"
+            : preferHardwareAcceleration
+                ? "VideoToolbox HEVC Main 10"
+                : "Software HEVC Main 10";
+
+        return new ExportCheckpoint(
+            jobId,
+            requestFingerprint,
+            request,
+            workingDirectory,
+            Array.Empty<string>(),
+            Array.Empty<int>(),
+            DateTimeOffset.UtcNow,
+            encoderLabel);
     }
 
-    private static string CreateConcatListPath(string outputPath, string attemptId)
+    private static bool IsCompatibleCheckpoint(
+        ExportRequest request,
+        string requestFingerprint,
+        int batchCount,
+        ExportCheckpoint checkpoint)
     {
-        var directory = Path.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory;
-        var fileName = Path.GetFileNameWithoutExtension(outputPath);
-        return Path.Combine(directory, $".{fileName}.{attemptId}.concat.txt");
+        if (!string.Equals(checkpoint.RequestFingerprint, requestFingerprint, StringComparison.Ordinal) ||
+            checkpoint.Request.KeepSegments.Count != request.KeepSegments.Count ||
+            checkpoint.BatchPaths.Count != 0 && checkpoint.BatchPaths.Count != batchCount ||
+            checkpoint.CompletedBatchIndexes.Any(index => index < 0 || index >= batchCount) ||
+            string.IsNullOrWhiteSpace(checkpoint.WorkingDirectory))
+        {
+            return false;
+        }
+
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(checkpoint.Request.OutputPath),
+                Path.GetFullPath(request.OutputPath),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool ResolveHardwarePreference(
+        ExportRequest request,
+        ExportCheckpoint checkpoint,
+        bool defaultPreference)
+    {
+        if (IsMovOutput(request.OutputPath))
+        {
+            return false;
+        }
+
+        if (checkpoint.EncoderLabel.Contains("Software", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (checkpoint.EncoderLabel.Contains("VideoToolbox", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return defaultPreference;
+    }
+
+    private static ExportCheckpoint ResetCheckpointForFallback(
+        ExportCheckpoint checkpoint,
+        string requestFingerprint)
+    {
+        foreach (var batchPath in checkpoint.BatchPaths)
+        {
+            TryDeleteTemporaryOutput(batchPath);
+        }
+
+        TryDeleteEmptyDirectory(checkpoint.WorkingDirectory);
+        return checkpoint with
+        {
+            RequestFingerprint = requestFingerprint,
+            BatchPaths = Array.Empty<string>(),
+            CompletedBatchIndexes = Array.Empty<int>(),
+            EncoderLabel = "Software HEVC Main 10"
+        };
+    }
+
+    private static string CreateBatchOutputPath(string workingDirectory, string outputPath, int batchIndex)
+    {
+        var extension = Path.GetExtension(outputPath);
+        return Path.Combine(workingDirectory, $"batch-{batchIndex + 1:D4}{extension}");
+    }
+
+    private static string CreateConcatListPath(string workingDirectory) =>
+        Path.Combine(workingDirectory, "concat-list.txt");
+
+    private static bool IsUsableBatch(string path)
+    {
+        try
+        {
+            return File.Exists(path) && new FileInfo(path).Length > 0;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static bool IsMovOutput(string outputPath) =>
@@ -440,5 +630,26 @@ public sealed class FfmpegVideoExporter : IVideoExporter
         }
     }
 
-    private sealed record RenderAttempt(bool Succeeded, string StandardError, string EncoderLabel);
+    private static void TryDeleteEmptyDirectory(string directoryPath)
+    {
+        try
+        {
+            if (Directory.Exists(directoryPath) && !Directory.EnumerateFileSystemEntries(directoryPath).Any())
+            {
+                Directory.Delete(directoryPath);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private sealed record RenderAttempt(
+        bool Succeeded,
+        string StandardError,
+        string EncoderLabel,
+        ExportCheckpoint Checkpoint);
 }

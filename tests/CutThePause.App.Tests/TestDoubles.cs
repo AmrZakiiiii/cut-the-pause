@@ -79,6 +79,7 @@ internal sealed class NoopVideoExporter : IVideoExporter
     public Task ExportAsync(
         ExportRequest request,
         IProgress<VideoExportProgress>? progress,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        ExportExecutionOptions? executionOptions = null) =>
         Task.CompletedTask;
 }

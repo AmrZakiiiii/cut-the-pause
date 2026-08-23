@@ -204,7 +204,8 @@ public sealed class VideoWorkflowServiceTests
         public Task ExportAsync(
             ExportRequest request,
             IProgress<VideoExportProgress>? progress,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            ExportExecutionOptions? executionOptions = null) =>
             Task.CompletedTask;
     }
 }

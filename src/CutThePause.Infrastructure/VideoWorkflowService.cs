@@ -91,10 +91,7 @@ public sealed class VideoWorkflowService
         IProgress<VideoExportProgress>? progress,
         CancellationToken cancellationToken,
         ExportExecutionOptions? executionOptions = null)
-    {
-        _ = executionOptions;
-        return _videoExporter.ExportAsync(request, progress, cancellationToken);
-    }
+        => _videoExporter.ExportAsync(request, progress, cancellationToken, executionOptions);
 
     private static IReadOnlyList<string> AddWarnings(VadAnalysisResult vadResult)
     {
