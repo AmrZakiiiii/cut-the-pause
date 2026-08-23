@@ -9,7 +9,8 @@ public static class CutPlanBuilder
         TimeSpan duration,
         IEnumerable<SpeechSegment> speechSegments,
         AnalysisSettings settings,
-        IEnumerable<string>? warnings = null)
+        IEnumerable<string>? warnings = null,
+        IReadOnlyList<float>? waveformPeaks = null)
     {
         var keepSegments = BuildKeepSegments(duration, speechSegments, settings);
         var cutCandidates = BuildCutCandidates(duration, keepSegments);
@@ -22,7 +23,10 @@ public static class CutPlanBuilder
             settings,
             keepSegments,
             cutCandidates,
-            warningList);
+            warningList)
+        {
+            WaveformPeaks = waveformPeaks?.ToArray() ?? Array.Empty<float>()
+        };
     }
 
     public static IReadOnlyList<KeepSegment> BuildKeepSegments(

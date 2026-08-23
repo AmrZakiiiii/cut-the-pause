@@ -8,6 +8,8 @@ public sealed record AnalysisResult(
     IReadOnlyList<CutCandidate> CutCandidates,
     IReadOnlyList<string> Warnings)
 {
+    public IReadOnlyList<float> WaveformPeaks { get; init; } = Array.Empty<float>();
+
     public TimeSpan RemovedDuration => CutCandidates.Where(candidate => candidate.IsEnabled).Aggregate(
         TimeSpan.Zero,
         static (current, candidate) => current + candidate.Duration);
