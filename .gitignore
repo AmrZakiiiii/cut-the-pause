@@ -14,3 +14,4 @@ assets/models/*.onnx
 tools/
 Visual Identity/
 Real Test Video/
+.worktrees/
