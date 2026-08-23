@@ -381,6 +381,20 @@ If CapCut 8.7 is unavailable at verification time, automated and fixture verific
 
 Per user instruction, implementation will be delegated through the `go-developer` workflow using the configured Ox Alpha Free model (`opencode/x-preview-f-free`). Codex remains the lead: it prepares the implementation brief, obtains explicit external-provider consent, reviews every diff, runs verification, and sends numbered fix rounds through the same bridge. Codex will not directly write implementation code.
 
+### Isolated worktree requirement
+
+Implementation must not occur in the current `main` checkout. Before delegated coding begins:
+
+1. Confirm the current checkout is clean and still on the approved specification commit.
+2. Add `.worktrees/` to `.gitignore` and commit that repository hygiene change if it is not already ignored.
+3. Create branch `feature/capcut-editable-project-export` in `.worktrees/capcut-editable-project-export` using `git worktree add`.
+4. Restore/build dependencies and run the complete baseline test suite inside the worktree.
+5. Stop and report if the clean baseline does not pass; do not attribute pre-existing failures to the feature.
+
+Every GO bridge invocation, numbered fix round, build, and automated test must run with the isolated worktree as its working directory. The bridge may inspect and modify repository context only through that worktree. The original checkout and any app process launched from it remain untouched.
+
+The feature branch will not be merged into `main` automatically. After implementation, review, automated verification, and live compatibility reporting, Codex will present the branch and integration options for explicit user approval.
+
 ## Future Extensions
 
 The `EditableTimelinePlan` is intentionally independent of CapCut. Future exporters can consume it to generate:
