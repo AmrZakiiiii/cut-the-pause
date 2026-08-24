@@ -49,6 +49,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     private ExportCheckpoint? _activeCheckpoint;
     private bool _pauseRequested;
     private bool _discardRequested;
+    private WorkspaceView _currentView = WorkspaceView.NewCut;
+    private readonly Stopwatch _analysisStopwatch = new();
+    private readonly Stopwatch _exportStopwatch = new();
+    private string _analysisElapsedText = "00:00";
 
     public MainWindowViewModel(
         VideoWorkflowService workflowService,
@@ -163,6 +167,47 @@ public sealed class MainWindowViewModel : ViewModelBase
     }
 
     public bool ShowExportOverlay => IsExporting || IsExportCompleted;
+
+    public bool ShowExportTray => IsExporting || IsExportCompleted || HasPausedExports;
+
+    public WorkspaceView CurrentView
+    {
+        get => _currentView;
+        private set
+        {
+            if (SetProperty(ref _currentView, value))
+            {
+                OnPropertyChanged(nameof(IsNewCutViewActive));
+                OnPropertyChanged(nameof(IsReviewViewActive));
+                OnPropertyChanged(nameof(IsHistoryViewActive));
+                OnPropertyChanged(nameof(IsHelpViewActive));
+            }
+        }
+    }
+
+    public bool IsNewCutViewActive => CurrentView == WorkspaceView.NewCut;
+
+    public bool IsReviewViewActive => CurrentView == WorkspaceView.Review;
+
+    public bool IsHistoryViewActive => CurrentView == WorkspaceView.History;
+
+    public bool IsHelpViewActive => CurrentView == WorkspaceView.Help;
+
+    public void ShowView(WorkspaceView view) => CurrentView = view;
+
+    public string AnalysisElapsedText
+    {
+        get => _analysisElapsedText;
+        private set => SetProperty(ref _analysisElapsedText, value);
+    }
+
+    public bool IsMovOutputFormat => string.Equals(Path.GetExtension(_outputPath), ".mov", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsMp4OutputFormat => !IsMovOutputFormat;
+
+    public bool HasAnalysisWithoutCuts => _analysisResult is not null && !HasCuts;
+
+    public string CutSummaryText => $"{CutCandidates.Count(static item => item.IsEnabled)} of {CutCandidates.Count} ranges will be removed";
 
     public bool HasCuts => CutCandidates.Count > 0;
 
@@ -400,6 +445,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
         OnPropertyChanged(nameof(SuggestedOutputFileName));
+        OnOutputFormatChanged();
+        ShowView(WorkspaceView.Review);
         RaiseStateProperties();
     }
 
@@ -412,6 +459,35 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         _outputPath = path;
         OnPropertyChanged(nameof(OutputPathDisplay));
+        OnOutputFormatChanged();
+        RaiseStateProperties();
+    }
+
+    public void SetOutputFormat(string extension)
+    {
+        if (_isBusy || string.IsNullOrWhiteSpace(extension))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_outputPath))
+        {
+            return;
+        }
+
+        var currentExtension = Path.GetExtension(_outputPath);
+        if (string.Equals(currentExtension, extension, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var withoutExtension = _outputPath[..^currentExtension.Length];
+        _outputPath = $"{withoutExtension}{extension}";
+        StatusMessage = extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            ? "Output set to MOV ProRes editing master."
+            : "Output set to MP4 10-bit HEVC Main 10 delivery.";
+        OnPropertyChanged(nameof(OutputPathDisplay));
+        OnOutputFormatChanged();
         RaiseStateProperties();
     }
 
@@ -446,6 +522,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             StatusMessage = $"Analysis complete. {_analysisResult.CutCandidates.Count} cut candidates detected.";
             RecalculateSummary();
             RecordAnalysisHistory();
+            ShowView(WorkspaceView.Review);
             RaiseStateProperties();
         }
         catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -586,6 +663,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         RestoreCheckpoint(SelectedPausedExport.Checkpoint);
         _activeCheckpoint = SelectedPausedExport.Checkpoint;
+        ShowView(WorkspaceView.Review);
         await ExportAsync();
     }
 
@@ -622,6 +700,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
         OnPropertyChanged(nameof(SuggestedOutputFileName));
+        OnOutputFormatChanged();
+        ShowView(WorkspaceView.Review);
         RaiseStateProperties();
     }
 
@@ -736,6 +816,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         IsExporting = false;
         IsExportCompleted = false;
+        OnPropertyChanged(nameof(ShowExportOverlay));
+        OnPropertyChanged(nameof(ShowExportTray));
     }
 
     public void RevealExportedFile()
@@ -779,6 +861,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasCuts));
         OnPropertyChanged(nameof(ShowEmptyState));
         OnPropertyChanged(nameof(HasAnalysis));
+        OnPropertyChanged(nameof(HasAnalysisWithoutCuts));
+        OnPropertyChanged(nameof(CutSummaryText));
         OnPropertyChanged(nameof(WaveformPeaks));
         OnPropertyChanged(nameof(AnalysisDuration));
         OnPropertyChanged(nameof(TimelineCuts));
@@ -804,6 +888,12 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             Process.Start(new ProcessStartInfo(_inputPath) { UseShellExecute = true });
         }
+    }
+
+    private void OnOutputFormatChanged()
+    {
+        OnPropertyChanged(nameof(IsMovOutputFormat));
+        OnPropertyChanged(nameof(IsMp4OutputFormat));
     }
 
     private AnalysisSettings BuildSettings() => new()
@@ -886,6 +976,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         OnPropertyChanged(nameof(HasCuts));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(HasAnalysisWithoutCuts));
+        OnPropertyChanged(nameof(CutSummaryText));
         OnPropertyChanged(nameof(TimelineCuts));
     }
 
@@ -895,6 +987,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             RecalculateSummary();
             OnPropertyChanged(nameof(TimelineCuts));
+            OnPropertyChanged(nameof(CutSummaryText));
         }
     }
 
@@ -1064,6 +1157,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanResumeSelectedExport));
         OnPropertyChanged(nameof(CanDiscardSelectedExport));
         OnPropertyChanged(nameof(HasPausedExports));
+        OnPropertyChanged(nameof(ShowExportTray));
     }
 
     private void OnCheckpointSaved(ExportCheckpoint checkpoint)
@@ -1106,6 +1200,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
         OnPropertyChanged(nameof(SuggestedOutputFileName));
+        OnOutputFormatChanged();
         RaiseStateProperties();
     }
 
@@ -1122,16 +1217,27 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void BeginAnalysisPresentation()
     {
         AnalysisStageText = "Preparing analysis...";
+        _analysisStopwatch.Restart();
+        UpdateAnalysisElapsedText();
         IsAnalyzing = true;
     }
 
-    private void EndAnalysisPresentation() => IsAnalyzing = false;
+    private void EndAnalysisPresentation()
+    {
+        _analysisStopwatch.Stop();
+        UpdateAnalysisElapsedText();
+        IsAnalyzing = false;
+    }
 
     private void OnAnalysisProgressReported(AnalysisProgress progress)
     {
         AnalysisStageText = progress.Stage;
         StatusMessage = progress.Stage;
+        UpdateAnalysisElapsedText();
     }
+
+    private void UpdateAnalysisElapsedText() =>
+        AnalysisElapsedText = $"Elapsed {_analysisStopwatch.Elapsed:hh\\:mm\\:ss}";
 
     private static string SuggestOutputPath(string inputPath)
     {
@@ -1151,7 +1257,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         ExportProgressStageText = "Preparing export...";
         ExportProgressDetailText = $"Target: {Path.GetExtension(request.OutputPath).ToLowerInvariant()}";
         ExportedOutputPath = request.OutputPath;
+        _exportStopwatch.Restart();
         OnPropertyChanged(nameof(ShowExportOverlay));
+        OnPropertyChanged(nameof(ShowExportTray));
     }
 
     private void CompleteExportPresentation(ExportRequest request)
@@ -1163,7 +1271,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         ExportOverlayTitle = "Export Complete";
         ExportOverlaySubtitle = "Your trimmed video is ready. Review the path below or reveal it in Finder.";
         ExportProgressStageText = "Render finished successfully.";
-        ExportProgressDetailText = request.OutputPath;
+        _exportStopwatch.Stop();
+        ExportProgressDetailText = $"{request.OutputPath} · Elapsed {_exportStopwatch.Elapsed:hh\\:mm\\:ss}";
         ExportedOutputPath = request.OutputPath;
     }
 
@@ -1171,7 +1280,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         IsExporting = false;
         IsExportCompleted = false;
+        _exportStopwatch.Stop();
         OnPropertyChanged(nameof(ShowExportOverlay));
+        OnPropertyChanged(nameof(ShowExportTray));
     }
 
     private void OnExportProgressReported(VideoExportProgress progress)
@@ -1179,7 +1290,19 @@ public sealed class MainWindowViewModel : ViewModelBase
         ExportProgressValue = Math.Clamp(progress.FractionComplete * 100d, 0d, 100d);
         ExportProgressPercentText = $"{ExportProgressValue:0}%";
         ExportProgressStageText = progress.Stage;
-        ExportProgressDetailText = $"{progress.EncoderLabel} · {FormatDuration(progress.EncodedDuration)} / {FormatDuration(progress.TotalDuration)}";
+        var detail = $"{progress.EncoderLabel} · {FormatDuration(progress.EncodedDuration)} / {FormatDuration(progress.TotalDuration)}";
+        if (progress.FractionComplete > 0.01d && progress.FractionComplete < 1d)
+        {
+            var estimatedRemaining = TimeSpan.FromSeconds(
+                _exportStopwatch.Elapsed.TotalSeconds * (1d - progress.FractionComplete) / progress.FractionComplete);
+            detail += $" · ~{estimatedRemaining:hh\\:mm\\:ss} left";
+        }
+        else
+        {
+            detail += $" · Elapsed {_exportStopwatch.Elapsed:hh\\:mm\\:ss}";
+        }
+
+        ExportProgressDetailText = detail;
     }
 
     private static string ResolvePreferredOutputExtension(string inputPath)

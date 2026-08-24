@@ -18,12 +18,12 @@ public sealed class WaveformTimeline : Control
     public static readonly StyledProperty<TimeSpan> DurationProperty =
         AvaloniaProperty.Register<WaveformTimeline, TimeSpan>(nameof(Duration), TimeSpan.Zero);
 
-    private static readonly IBrush TrackBrush = new SolidColorBrush(Color.Parse("#0B1220"));
+    private static readonly IBrush TrackBrush = new SolidColorBrush(Color.Parse("#081019"));
     private static readonly IBrush WaveformBrush = new SolidColorBrush(Color.Parse("#14D1C8"));
-    private static readonly IBrush EnabledCutBrush = new SolidColorBrush(Color.FromArgb(115, 255, 182, 86));
-    private static readonly IBrush DisabledCutBrush = new SolidColorBrush(Color.FromArgb(100, 90, 155, 165));
+    private static readonly IBrush EnabledCutBrush = new SolidColorBrush(Color.FromArgb(140, 255, 182, 86));
+    private static readonly IBrush DisabledCutBrush = new SolidColorBrush(Color.FromArgb(70, 122, 148, 168));
     private static readonly IBrush SelectionBrush = new SolidColorBrush(Color.FromArgb(90, 20, 209, 200));
-    private static readonly Pen CenterLinePen = new(new SolidColorBrush(Color.FromArgb(100, 169, 182, 200)), 1);
+    private static readonly Pen CenterLinePen = new(new SolidColorBrush(Color.FromArgb(90, 169, 182, 200)), 1);
 
     private bool _isDragging;
     private double _dragStartX;

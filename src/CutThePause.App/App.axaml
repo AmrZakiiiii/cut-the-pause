@@ -3,7 +3,94 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:fluent="clr-namespace:Avalonia.Themes.Fluent;assembly=Avalonia.Themes.Fluent">
+  <Application.Resources>
+    <SolidColorBrush x:Key="BrandBaseBrush" Color="#0F111A" />
+    <SolidColorBrush x:Key="BrandSurfaceBrush" Color="#0B1220" />
+    <SolidColorBrush x:Key="BrandPanelBrush" Color="#131D28" />
+    <SolidColorBrush x:Key="BrandPanelAltBrush" Color="#172332" />
+    <SolidColorBrush x:Key="BrandRailBrush" Color="#0C1420" />
+    <SolidColorBrush x:Key="BrandBorderBrush" Color="#273447" />
+    <SolidColorBrush x:Key="BrandTextBrush" Color="#F4F4F6" />
+    <SolidColorBrush x:Key="BrandMutedBrush" Color="#A9B6C8" />
+    <SolidColorBrush x:Key="BrandCyanBrush" Color="#14D1C8" />
+    <SolidColorBrush x:Key="BrandWarmBrush" Color="#FFB656" />
+    <SolidColorBrush x:Key="BrandOnAccentBrush" Color="#081019" />
+    <SolidColorBrush x:Key="BrandOnWarmBrush" Color="#231408" />
+  </Application.Resources>
   <Application.Styles>
     <fluent:FluentTheme />
+
+    <Style Selector="TextBlock.workspace-title">
+      <Setter Property="FontSize" Value="22" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{StaticResource BrandTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.section-label">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource BrandMutedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="Foreground" Value="{StaticResource BrandMutedBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.muted-caption">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="LineHeight" Value="17" />
+      <Setter Property="Foreground" Value="{StaticResource BrandMutedBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBox.inspector-field">
+      <Setter Property="Background" Value="{StaticResource BrandSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource BrandTextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BrandBorderBrush}" />
+      <Setter Property="MinWidth" Value="96" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+
+    <Style Selector="Button.nav-item">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="6,8" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{StaticResource BrandMutedBrush}" />
+    </Style>
+    <Style Selector="Button.nav-item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#16202E" />
+      <Setter Property="Foreground" Value="{StaticResource BrandTextBrush}" />
+    </Style>
+    <Style Selector="Button.nav-item.active /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#12262B" />
+      <Setter Property="BorderBrush" Value="#1E4A4A" />
+    </Style>
+    <Style Selector="Button.nav-item.active">
+      <Setter Property="Foreground" Value="{StaticResource BrandCyanBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Button.ctp-accent">
+      <Setter Property="Background" Value="{StaticResource BrandCyanBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BrandCyanBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource BrandOnAccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.ctp-warm">
+      <Setter Property="Background" Value="{StaticResource BrandWarmBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BrandWarmBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource BrandOnWarmBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.ctp-ghost">
+      <Setter Property="Background" Value="{StaticResource BrandPanelAltBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BrandBorderBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource BrandTextBrush}" />
+    </Style>
+
+    <Style Selector="ListBox.plain">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
   </Application.Styles>
 </Application>
