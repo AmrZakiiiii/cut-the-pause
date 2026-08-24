@@ -148,6 +148,44 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task AnalyzeAsync_NotifiesReviewBindingsWhenWaveformIsReady()
+    {
+        var viewModel = CreateViewModel(
+            new InMemoryAnalysisSettingsStore(AnalysisSettingsPreferences.Defaults),
+            audioExtractor: new WaveformAudioExtractor());
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+        viewModel.SetInputPath("/tmp/waveform-source.mov");
+        changedProperties.Clear();
+
+        await viewModel.AnalyzeAsync();
+
+        Assert.NotEmpty(viewModel.WaveformPeaks);
+        Assert.Contains(nameof(MainWindowViewModel.WaveformPeaks), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.AnalysisDuration), changedProperties);
+    }
+
+    [Fact]
+    public async Task TimelineExpansion_RequiresAnalysisAndCanBeClosed()
+    {
+        var viewModel = CreateViewModel(new InMemoryAnalysisSettingsStore(AnalysisSettingsPreferences.Defaults));
+
+        viewModel.OpenTimeline();
+
+        Assert.False(viewModel.IsTimelineExpanded);
+
+        viewModel.SetInputPath("/tmp/timeline-source.mov");
+        await viewModel.AnalyzeAsync();
+        viewModel.OpenTimeline();
+
+        Assert.True(viewModel.IsTimelineExpanded);
+
+        viewModel.CloseTimeline();
+
+        Assert.False(viewModel.IsTimelineExpanded);
+    }
+
+    [Fact]
     public async Task CancelOperation_CancelsAnalysisAndRestoresIdleState()
     {
         var vad = new DelayedVadAnalyzer();
@@ -188,15 +226,22 @@ public sealed class MainWindowViewModelTests
     private static MainWindowViewModel CreateViewModel(
         IAnalysisSettingsStore settingsStore,
         IVideoMetadataReader? metadataReader = null,
-        IVadAnalyzer? vadAnalyzer = null)
+        IVadAnalyzer? vadAnalyzer = null,
+        IAudioExtractor? audioExtractor = null)
     {
         var workflow = new VideoWorkflowService(
             metadataReader ?? new FixedMetadataReader(),
-            new FixedAudioExtractor(),
+            audioExtractor ?? new FixedAudioExtractor(),
             vadAnalyzer ?? new FixedVadAnalyzer(),
             new NoopVideoExporter());
 
         return new MainWindowViewModel(workflow, settingsStore);
+    }
+
+    private sealed class WaveformAudioExtractor : IAudioExtractor
+    {
+        public Task<PcmAudioData> ExtractAsync(string inputPath, CancellationToken cancellationToken) =>
+            Task.FromResult(new PcmAudioData(new[] { 0.1f, -0.5f, 0.2f, -1f }, 16_000));
     }
 
 }

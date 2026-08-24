@@ -197,19 +197,33 @@
               </StackPanel>
             </Border>
 
-            <Border Grid.Row="3" Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12,10" IsVisible="{Binding HasAnalysis}">
-              <StackPanel Spacing="6">
-                <TextBlock Classes="section-label" Text="WAVEFORM TIMELINE" />
+            <Border Grid.Row="3" Background="#0B1220" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12,10" ClipToBounds="True" IsVisible="{Binding HasAnalysis}">
+              <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6" MinWidth="0">
+                <Grid ColumnDefinitions="*,Auto" MinWidth="0">
+                  <TextBlock Classes="section-label" Text="WAVEFORM TIMELINE" VerticalAlignment="Center" />
+                  <Button
+                      Grid.Column="1"
+                      Classes="ctp-ghost"
+                      Click="OnExpandTimelineClick"
+                      Content="Expand"
+                      IsEnabled="{Binding CanExpandTimeline}"
+                      Padding="10,4"
+                      FontSize="11"
+                      ToolTip.Tip="Open the full-width timeline" />
+                </Grid>
                 <controls:WaveformTimeline
+                    Grid.Row="1"
                     Height="168"
                     Cursor="Hand"
+                    HorizontalAlignment="Stretch"
+                    MinWidth="0"
                     Peaks="{Binding WaveformPeaks}"
                     Cuts="{Binding TimelineCuts}"
                     Duration="{Binding AnalysisDuration}"
                     CutClicked="OnTimelineCutClicked"
                     RangeSelected="OnTimelineRangeSelected" />
-                <TextBlock Classes="muted-caption" FontSize="11" Text="Amber bands are enabled cuts · faded bands stay in the video · click a band to toggle it · drag across the timeline to add a manual cut." />
-              </StackPanel>
+                <TextBlock Grid.Row="2" Classes="muted-caption" FontSize="11" Text="Amber bands are enabled cuts · faded bands stay in the video · click a band to toggle it · drag across the timeline to add a manual cut." />
+              </Grid>
             </Border>
 
             <Grid Grid.Row="4">
@@ -458,5 +472,51 @@
         </ItemsControl>
       </StackPanel>
     </Border>
+
+    <!--  Full-width timeline overlay  -->
+    <Grid Grid.RowSpan="5" Panel.ZIndex="100" Background="#B30A101A" IsVisible="{Binding IsTimelineExpanded}">
+      <Border
+          Width="1180"
+          MaxWidth="1180"
+          Background="#101B29"
+          BorderBrush="#3A526A"
+          BorderThickness="1"
+          CornerRadius="18"
+          Padding="20,18"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          ClipToBounds="True">
+        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="14" MinWidth="0">
+          <Grid ColumnDefinitions="*,Auto" MinWidth="0">
+            <StackPanel Spacing="3">
+              <TextBlock FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrandTextBrush}" Text="Full waveform timeline" />
+              <TextBlock Classes="muted-caption" Text="Inspect the complete video timeline, toggle detected cuts, or drag to add a manual cut." />
+            </StackPanel>
+            <Button
+                Grid.Column="1"
+                Classes="ctp-ghost"
+                Click="OnCloseTimelineClick"
+                Content="Close"
+                Padding="12,6"
+                ToolTip.Tip="Close the expanded timeline (Esc)" />
+          </Grid>
+
+          <Border Grid.Row="1" Background="#081019" BorderBrush="{StaticResource BrandBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12" ClipToBounds="True">
+            <controls:WaveformTimeline
+                Height="360"
+                Cursor="Hand"
+                HorizontalAlignment="Stretch"
+                MinWidth="0"
+                Peaks="{Binding WaveformPeaks}"
+                Cuts="{Binding TimelineCuts}"
+                Duration="{Binding AnalysisDuration}"
+                CutClicked="OnTimelineCutClicked"
+                RangeSelected="OnTimelineRangeSelected" />
+          </Border>
+
+          <TextBlock Grid.Row="2" Classes="muted-caption" FontSize="11" Text="Amber bands are enabled cuts · faded bands stay in the video · click a band to toggle it · drag across the timeline to add a manual cut." />
+        </Grid>
+      </Border>
+    </Grid>
   </Grid>
 </Window>

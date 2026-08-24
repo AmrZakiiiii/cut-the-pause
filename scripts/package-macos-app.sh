@@ -16,6 +16,23 @@ mkdir -p "$app_dir/Contents/MacOS/Models"
 cp "$repo_root/packaging/macos/Info.plist" "$app_dir/Contents/Info.plist"
 cp -R "$publish_dir"/. "$app_dir/Contents/MacOS/"
 
+# The macOS ONNX Runtime binary is shipped as libonnxruntime.dylib, but its
+# install name can reference a versioned @rpath filename. Preserve that
+# loader contract inside the self-contained app bundle.
+onnx_runtime="$app_dir/Contents/MacOS/libonnxruntime.dylib"
+if [[ -f "$onnx_runtime" ]] && command -v otool >/dev/null 2>&1; then
+  onnx_install_name="$(otool -D "$onnx_runtime" | tail -n 1)"
+  onnx_versioned_name="$(basename "$onnx_install_name")"
+  if [[ "$onnx_versioned_name" != "libonnxruntime.dylib" && "$onnx_versioned_name" == libonnxruntime.*.dylib ]]; then
+    ln -sfn "libonnxruntime.dylib" "$app_dir/Contents/MacOS/$onnx_versioned_name"
+  fi
+
+  if [[ "$onnx_versioned_name" != "libonnxruntime.dylib" && ! -e "$app_dir/Contents/MacOS/$onnx_versioned_name" ]]; then
+    echo "ONNX Runtime dependency is missing from the app bundle: $onnx_versioned_name" >&2
+    exit 1
+  fi
+fi
+
 if [[ -x "$ffmpeg_prefix/bin/ffmpeg" ]]; then
   cp "$ffmpeg_prefix/bin/ffmpeg" "$app_dir/Contents/MacOS/ffmpeg"
 fi

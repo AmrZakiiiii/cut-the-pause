@@ -49,6 +49,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private ExportCheckpoint? _activeCheckpoint;
     private bool _pauseRequested;
     private bool _discardRequested;
+    private bool _isTimelineExpanded;
     private WorkspaceView _currentView = WorkspaceView.NewCut;
     private readonly Stopwatch _analysisStopwatch = new();
     private readonly Stopwatch _exportStopwatch = new();
@@ -193,7 +194,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public bool IsHelpViewActive => CurrentView == WorkspaceView.Help;
 
-    public void ShowView(WorkspaceView view) => CurrentView = view;
+    public void ShowView(WorkspaceView view)
+    {
+        if (view != WorkspaceView.Review)
+        {
+            CloseTimeline();
+        }
+
+        CurrentView = view;
+    }
 
     public string AnalysisElapsedText
     {
@@ -216,6 +225,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool HasWarnings => !string.IsNullOrWhiteSpace(_warningsText);
 
     public bool HasAnalysis => _analysisResult is not null;
+
+    public bool CanExpandTimeline => !_isBusy && HasAnalysis;
+
+    public bool IsTimelineExpanded
+    {
+        get => _isTimelineExpanded;
+        private set => SetProperty(ref _isTimelineExpanded, value);
+    }
 
     public bool HasHistory => HistoryEntries.Count > 0;
 
@@ -449,6 +466,16 @@ public sealed class MainWindowViewModel : ViewModelBase
         ShowView(WorkspaceView.Review);
         RaiseStateProperties();
     }
+
+    public void OpenTimeline()
+    {
+        if (CanExpandTimeline)
+        {
+            IsTimelineExpanded = true;
+        }
+    }
+
+    public void CloseTimeline() => IsTimelineExpanded = false;
 
     public void SetOutputPath(string path)
     {
@@ -846,6 +873,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        CloseTimeline();
         _analysisResult = null;
 
         foreach (var item in CutCandidates)
@@ -1015,6 +1043,11 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void SetBusy(bool isBusy, string message)
     {
         _isBusy = isBusy;
+        if (isBusy)
+        {
+            CloseTimeline();
+        }
+
         StatusMessage = message;
         RaiseStateProperties();
     }
@@ -1034,6 +1067,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanDiscardSelectedExport));
         OnPropertyChanged(nameof(CanLoadSelectedHistory));
         OnPropertyChanged(nameof(HasAnalysis));
+        OnPropertyChanged(nameof(CanExpandTimeline));
+        OnPropertyChanged(nameof(WaveformPeaks));
+        OnPropertyChanged(nameof(AnalysisDuration));
         OnPropertyChanged(nameof(InputPathDisplay));
         OnPropertyChanged(nameof(OutputPathDisplay));
     }

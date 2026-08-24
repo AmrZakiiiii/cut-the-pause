@@ -235,6 +235,10 @@ public sealed class SileroVadAnalyzer : IVadAnalyzer, IStreamingVadAnalyzer
 
         foreach (var directory in directories)
         {
+            // Self-contained macOS app bundles place the ONNX Runtime dylib
+            // beside the executable rather than under runtimes/*/native.
+            yield return Path.Combine(directory!, fileName);
+
             var runtimesDirectory = Path.Combine(directory!, "runtimes");
             if (!Directory.Exists(runtimesDirectory))
             {

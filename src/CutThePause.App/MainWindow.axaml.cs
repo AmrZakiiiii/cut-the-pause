@@ -86,6 +86,10 @@ public partial class MainWindow : Window
 
     private void OnRevealExportedFileClick(object? sender, RoutedEventArgs e) => ViewModel.RevealExportedFile();
 
+    private void OnExpandTimelineClick(object? sender, RoutedEventArgs e) => ViewModel.OpenTimeline();
+
+    private void OnCloseTimelineClick(object? sender, RoutedEventArgs e) => ViewModel.CloseTimeline();
+
     private void OnCancelOperationClick(object? sender, RoutedEventArgs e) => ViewModel.CancelOperation();
 
     private void OnPauseOperationClick(object? sender, RoutedEventArgs e) => ViewModel.PauseOperation();
@@ -176,7 +180,16 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.Escape)
         {
-            ViewModel.CancelOperation();
+            if (ViewModel.IsTimelineExpanded)
+            {
+                ViewModel.CloseTimeline();
+            }
+            else
+            {
+                ViewModel.CancelOperation();
+            }
+
+            e.Handled = true;
         }
     }
 
