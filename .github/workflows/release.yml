@@ -8,7 +8,9 @@ on:
 
 jobs:
   package-macos:
-    runs-on: macos-14
+    runs-on: macos-15
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -20,37 +22,63 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Install FFmpeg
-        run: brew install ffmpeg
+        run: brew install ffmpeg jq
 
       - name: Download Silero model
         run: ./scripts/download-silero-model.sh
 
       - name: Restore
-        run: dotnet restore CutThePause.sln
+        run: dotnet restore CutThePause.sln --runtime osx-arm64
 
       - name: Build
         run: dotnet build CutThePause.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test CutThePause.sln --configuration Release --no-build
+      - name: Validate test matrix
+        run: bash scripts/validate-test-matrix.sh
+
+      - name: Test Core
+        run: dotnet test tests/CutThePause.Core.Tests/CutThePause.Core.Tests.csproj --configuration Release --no-build
+
+      - name: Test Infrastructure
+        run: dotnet test tests/CutThePause.Infrastructure.Tests/CutThePause.Infrastructure.Tests.csproj --configuration Release --no-build
+
+      - name: Test App
+        run: dotnet test tests/CutThePause.App.Tests/CutThePause.App.Tests.csproj --configuration Release --no-build
 
       - name: Publish app
-        run: dotnet publish src/CutThePause.App/CutThePause.App.csproj --configuration Release --runtime osx-arm64 --self-contained true --output artifacts/publish/osx-arm64
+        run: dotnet publish src/CutThePause.App/CutThePause.App.csproj --configuration Release --runtime osx-arm64 --self-contained true --no-restore --output artifacts/publish/osx-arm64
 
       - name: Package .app bundle
         run: ./scripts/package-macos-app.sh artifacts/publish/osx-arm64 "$(brew --prefix ffmpeg)" artifacts/release
 
-      - name: Zip artifact
-        run: ditto -c -k --keepParent "artifacts/release/Cut The Pause.app" artifacts/release/CutThePause-macos-arm64.zip
+      - name: Smoke-test package and checksum
+        run: ./scripts/test-macos-package.sh artifacts/release/CutThePause-macos-arm64.zip
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: CutThePause-macos-arm64
-          path: artifacts/release/CutThePause-macos-arm64.zip
+          path: |
+            artifacts/release/CutThePause-macos-arm64.zip
+            artifacts/release/CutThePause-macos-arm64.zip.sha256
+
+  attach-release:
+    if: github.event_name == 'release'
+    needs: package-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CutThePause-macos-arm64
+          path: artifacts/release
 
       - name: Attach to GitHub release
-        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/release/CutThePause-macos-arm64.zip
+          files: |
+            artifacts/release/CutThePause-macos-arm64.zip
+            artifacts/release/CutThePause-macos-arm64.zip.sha256

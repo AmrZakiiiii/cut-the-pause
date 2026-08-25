@@ -25,5 +25,14 @@ jobs:
       - name: Build
         run: dotnet build CutThePause.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test CutThePause.sln --configuration Release --no-build
+      - name: Validate test matrix
+        run: bash scripts/validate-test-matrix.sh
+
+      - name: Test Core
+        run: dotnet test tests/CutThePause.Core.Tests/CutThePause.Core.Tests.csproj --configuration Release --no-build
+
+      - name: Test Infrastructure
+        run: dotnet test tests/CutThePause.Infrastructure.Tests/CutThePause.Infrastructure.Tests.csproj --configuration Release --no-build
+
+      - name: Test App
+        run: dotnet test tests/CutThePause.App.Tests/CutThePause.App.Tests.csproj --configuration Release --no-build

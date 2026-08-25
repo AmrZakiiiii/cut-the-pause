@@ -15,3 +15,4 @@ tools/
 Visual Identity/
 Real Test Video/
 .worktrees/
+.playwright-cli/

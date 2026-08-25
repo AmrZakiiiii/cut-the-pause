@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Cut The Pause is a mac-first desktop beta that helps solo creators review and remove awkward speech gaps from video.">
+    <meta name="theme-color" content="#0f111a">
+    <title>Cut The Pause | Edit out the silence</title>
+    <link rel="icon" href="assets/app-icon.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="wordmark" href="#top" aria-label="Cut The Pause home">
+          <img src="assets/app-icon.png" alt="" width="36" height="36">
+          <span>Cut The <em>Pause</em></span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a href="#demo">See it work</a>
+          <a href="#install">Install</a>
+          <a href="#faq">FAQ</a>
+          <a href="#support">Support</a>
+          <a class="nav-cta" href="#download">Beta status</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero shell" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Mac-first desktop beta · v0.1.0</p>
+          <h1 id="hero-title">Keep the story.<br><span>Lose the pause.</span></h1>
+          <p class="hero-lede">Find quiet gaps, review every proposed cut, and export a cleaner video.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" data-release-link href="#download" aria-describedby="download-status">Download beta <span aria-hidden="true">↗</span></a>
+            <a class="button button-quiet" href="#demo">See it work</a>
+          </div>
+        </div>
+        <div class="hero-art" aria-label="Current Cut The Pause expanded timeline preview">
+          <img src="assets/current-analyzed-timeline.png" alt="Current Cut The Pause expanded timeline showing the analyzed waveform, amber detected cut bands, and a full timeline view">
+        </div>
+      </section>
+
+      <section class="signal-bar" aria-label="Product positioning">
+        <div class="shell signal-grid">
+          <p>Import MP4 or MOV</p>
+          <p>Review every cut</p>
+          <p>Export the cleaned version</p>
+        </div>
+      </section>
+
+      <section class="section shell" id="demo" aria-labelledby="demo-title">
+        <div class="section-heading">
+          <p class="eyebrow">The quiet edit</p>
+          <h2 id="demo-title">From long-winded<br><span>to ready to share.</span></h2>
+          <p>One real sample clip. One clear review loop. The app proposes the gaps; you decide what survives.</p>
+        </div>
+        <div class="comparison" role="group" aria-label="Current New Cut to analyzed Review workflow">
+          <figure class="comparison-card comparison-before">
+            <div class="figure-label"><span>Before</span><small>Current New Cut</small></div>
+            <img src="assets/current-new-cut.png" alt="Current Cut The Pause New Cut screen with an empty source state, New Cut selected in the sidebar, and an Import Video button" loading="lazy">
+            <figcaption>Current UI capture: New Cut screen. Start with an MP4 or MOV and choose your detection settings.</figcaption>
+          </figure>
+          <div class="comparison-arrow" aria-hidden="true">→</div>
+          <figure class="comparison-card comparison-after">
+            <div class="figure-label"><span>After</span><small>Analyzed Review</small></div>
+            <img src="assets/current-analyzed-review.png" alt="Current Cut The Pause Review screen showing an analyzed waveform timeline, amber detected cut bands, a reviewable cut list, Inspector settings, and 13 cut candidates" loading="lazy">
+            <figcaption>Analyzed current UI capture: Review workflow. The waveform, cut list, Inspector, and 13 detected candidates are visible together.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="section section-ink current-ui" aria-labelledby="current-ui-title">
+        <div class="shell current-ui-layout">
+          <div class="section-heading">
+            <p class="detail-label">Current desktop UI</p>
+            <h2 id="current-ui-title">New in the<br><span>current UI.</span></h2>
+            <p>The beta keeps the review loop focused while giving longer projects more control.</p>
+          </div>
+          <div class="current-ui-list">
+            <article><h3>Waveform timeline and manual cut ranges</h3><p>See the analyzed shape, then add or adjust manual cut ranges alongside detected silence.</p></article>
+            <article><h3>Pause and resume export checkpoints</h3><p>Pause an export and resume from its saved checkpoint without restarting the job.</p></article>
+            <article><h3>Review and export history</h3><p>Return to prior analysis and export records from the desktop app.</p></article>
+            <article><h3>Named custom presets</h3><p>Save detection and export settings under a name for repeatable work.</p></article>
+          </div>
+        </div>
+        <div class="current-ui-visuals">
+          <div class="current-ui-visual-head">
+            <p class="detail-label">Current UI screens</p>
+            <p>Fresh captures of the current desktop flow.</p>
+          </div>
+          <div class="current-ui-shot-grid">
+            <figure class="current-ui-shot">
+              <img src="assets/current-new-cut.png" alt="Current Cut The Pause New Cut screen with an empty source state, New Cut selected in the sidebar, and an Import Video button" loading="lazy">
+              <figcaption><strong>Current UI capture: New Cut screen.</strong> The idle import state before a source video is selected.</figcaption>
+            </figure>
+            <figure class="current-ui-shot">
+              <img src="assets/current-help.png" alt="Current Cut The Pause Help screen showing Silence Studio basics, workflow steps, keyboard shortcuts, export quality, and local privacy" loading="lazy">
+              <figcaption><strong>Current UI capture: Help screen.</strong> The built-in workflow, export, and local privacy guidance.</figcaption>
+            </figure>
+          </div>
+          <div class="current-ui-visual-head current-ui-analyzed-head">
+            <p class="detail-label">Analyzed current UI</p>
+            <p>Review, inspect, and expand the full timeline.</p>
+          </div>
+          <div class="current-ui-shot-grid">
+            <figure class="current-ui-shot">
+              <img src="assets/current-analyzed-review.png" alt="Current Cut The Pause Review screen showing an analyzed waveform timeline, amber detected cut bands, a reviewable cut list, Inspector settings, and 13 cut candidates" loading="lazy">
+              <figcaption><strong>Analyzed current UI capture: Review workflow.</strong> The waveform, cut list, Inspector, and 13 detected candidates are visible together.</figcaption>
+            </figure>
+            <figure class="current-ui-shot">
+              <img src="assets/current-analyzed-timeline.png" alt="Current Cut The Pause expanded full waveform timeline showing detected amber cut bands and the option to add manual cuts" loading="lazy">
+              <figcaption><strong>Analyzed current UI capture: Expanded timeline.</strong> The full waveform view makes detected bands and manual cut placement easier to inspect.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-ink" aria-labelledby="workflow-title">
+        <div class="shell workflow-layout">
+          <div>
+            <h2 id="workflow-title">Less scrub.<br><span>More story.</span></h2>
+          </div>
+          <div class="workflow-notes">
+            <article><h3>Detect speech gaps</h3><p>A Silero VAD pipeline is used when the model is available, with an energy-based fallback when it is not.</p></article>
+            <article><h3>Keep your judgment</h3><p>Every proposed cut is visible and can be disabled before anything is exported.</p></article>
+            <article><h3>Choose your delivery</h3><p>Export a compact 10-bit HEVC MP4 or an explicitly selected ProRes-based MOV master.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section shell" id="download" aria-labelledby="download-title">
+        <div class="download-panel">
+          <div>
+            <h2 id="download-title">The public beta<br><span>is ready to try.</span></h2>
+            <p>Download the unsigned Apple Silicon build from GitHub, verify the checksum, and follow the install guide for the first launch.</p>
+          </div>
+          <div class="download-action">
+            <a class="button button-primary button-large" data-release-link href="#download" aria-describedby="download-status">Download beta <span aria-hidden="true">↗</span></a>
+            <p id="download-status" class="action-status" role="status">Download the verified beta from GitHub.</p>
+            <p class="small-note">Expected files: <code>CutThePause-macos-arm64.zip</code> and <code>.sha256</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-paper" id="install" aria-labelledby="install-title">
+        <div class="shell install-layout">
+          <div class="section-heading">
+            <p class="eyebrow">Compatibility and install</p>
+            <h2 id="install-title">Apple Silicon,<br><span>with a careful first launch.</span></h2>
+            <p>The current beta targets Apple Silicon Macs running macOS 13.0 or newer. Intel Macs are not a supported target for this package.</p>
+          </div>
+          <ol class="install-steps">
+            <li><strong>Verify both files.</strong><p>In Downloads, run <code>shasum -a 256 -c CutThePause-macos-arm64.zip.sha256</code>. The result must say <code>OK</code>.</p></li>
+            <li><strong>Extract and move the app.</strong><p>Double-click the verified ZIP in Finder, then move <code>Cut The Pause.app</code> to <code>~/Applications</code> or <code>/Applications</code>.</p></li>
+            <li><strong>Right-click → Open.</strong><p>The beta is unsigned and not notarized. On first launch, Control-click the app in Finder, choose <strong>Open</strong>, then choose <strong>Open</strong> again.</p></li>
+          </ol>
+        </div>
+        <div class="shell install-callout"><strong>What is bundled?</strong> FFmpeg, FFprobe, and the Silero VAD model are included in the downloaded beta. Do not launch a copy from inside the ZIP.</div>
+      </section>
+
+      <section class="section shell" id="faq" aria-labelledby="faq-title">
+        <div class="section-heading narrow-heading">
+          <h2 id="faq-title">Questions before<br><span>you cut.</span></h2>
+        </div>
+        <div class="faq-list">
+          <details open><summary>Does it upload my video?</summary><p>The current desktop workflow is designed around local analysis and export on your Mac. The app has no account or cloud-processing flow in the current beta documentation.</p></details>
+          <details><summary>Why does macOS warn me about the app?</summary><p>This beta is unsigned and not notarized, so Gatekeeper warnings are expected. Verify the checksum first, then use Finder’s right-click → Open flow. Never disable Gatekeeper globally.</p></details>
+          <details><summary>What happens if the Silero model is unavailable?</summary><p>The app falls back to its built-in energy-based detector and shows a warning. The downloaded beta is intended to include the model in the app bundle.</p></details>
+          <details><summary>Can I edit the proposed cuts?</summary><p>Yes. The review list exposes each detected silence range so you can disable false positives before exporting.</p></details>
+          <details><summary>Is there a paid plan or checkout?</summary><p>No live checkout is connected to this preview. The project is open source and the current beta is supporter-funded; voluntary support is not a proprietary license or a required purchase.</p></details>
+        </div>
+      </section>
+
+      <section class="section section-ink split-section" id="support" aria-labelledby="support-title">
+        <div class="shell split-layout">
+          <div>
+            <h2 id="support-title">Bring the awkward<br><span>edge cases.</span></h2>
+          </div>
+          <div>
+            <p>Found an edge case? <a class="support-link" href="https://github.com/AmrZakiiiii/cut-the-pause/issues" target="_blank" rel="noopener">Open a GitHub issue <span aria-hidden="true">↗</span></a> with the exact input file, macOS version, and app status or warnings panel.</p>
+            <p class="support-note">Include a reproducible step and the app status or warnings text with your report.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section shell detail-grid" aria-label="Project details">
+        <article id="privacy" class="detail-card">
+          <p class="detail-label">Privacy</p>
+          <h2>Local-first by design.</h2>
+          <p>The app workflow is built for local video analysis and export. Current documentation describes local settings, history, detection settings, custom presets, and export checkpoints under the macOS application-data folder. This static site has no analytics, trackers, account system, or upload form.</p>
+        </article>
+        <article id="changelog" class="detail-card accent-card">
+          <p class="detail-label">Changelog</p>
+          <h2>v0.1.0 beta</h2>
+          <ul class="compact-list"><li>Speech-gap detection with reviewable cut candidates.</li><li>MP4 HEVC and ProRes-based MOV export paths.</li><li>Cancel-safe analysis and export progress.</li><li>Long-video handling, history, presets, and timeline review in the desktop app.</li></ul>
+        </article>
+        <article id="terms" class="detail-card">
+          <p class="detail-label">Terms</p>
+          <h2>Open source, as-is.</h2>
+          <p>The repository source is MIT-licensed. The software is provided “as is,” without warranty. FFmpeg, the Silero VAD model, and other runtime inputs have their own licenses and notices; review the bundled documentation before redistribution.</p>
+        </article>
+        <article id="refund" class="detail-card">
+          <p class="detail-label">Refund policy</p>
+          <h2>No purchase is active.</h2>
+          <p>There is no live checkout or paid plan connected to this preview, so no refund promise is being presented. If a future support or hosted service introduces payment, it must publish separate terms before accepting it.</p>
+        </article>
+      </section>
+
+      <section class="section shell checkout-section" id="checkout" aria-labelledby="checkout-title">
+        <div class="checkout-placeholder">
+          <div><span class="preview-tag">PREVIEW / INACTIVE</span><h2 id="checkout-title">Hosted checkout placeholder</h2><p>This block is intentionally non-functional. Configure a reviewed checkout URL only when the project has one; the static site does not collect payment details.</p></div>
+          <button class="button button-outline" type="button" data-checkout-link disabled aria-disabled="true">Checkout not configured</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <div><a class="wordmark" href="#top"><img src="assets/app-icon.png" alt="" width="30" height="30"><span>Cut The <em>Pause</em></span></a><p>Mac-first silence cleanup for people who make things.</p></div>
+        <div class="footer-links" aria-label="Footer navigation"><a href="#privacy">Privacy</a><a href="#terms">Terms</a><a href="#refund">Refund policy</a><a href="#install">Install</a><a href="#checkout">Checkout status</a></div>
+        <p class="footer-meta">Open-source beta · Apple Silicon download available</p>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
